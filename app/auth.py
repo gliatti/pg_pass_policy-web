@@ -363,21 +363,26 @@ class _ThrottledWarning:
             if self._global_start is None or now - self._global_start >= self.interval:
                 self._global_start, self._global_lines = now, 0
                 global_pending = self._global.take()
-            if self._global_lines >= self.max_lines:
+            over_cap = self._global_lines >= self.max_lines
+            if over_cap:
                 # over the global cap: this warning and the count of its key
                 # go to the global count
                 self._global.add(*window.take())
                 self._global.add(1, None)
-                return
-            self._global_lines += 1
-            suppressed, since = window.take()
-            # logged under the lock, so that the global line of an interval
-            # always comes before the warnings of the next one
-            self._log_pending(" (all sources)", *global_pending)
-            if suppressed and since is not None:
-                message += " (%d similar warnings suppressed since %s)"
-                args = (*args, suppressed, since.isoformat(timespec="seconds"))
-            log.warning(message, *args)
+            else:
+                self._global_lines += 1
+                suppressed, since = window.take()
+        # logged outside the lock (a slow log sink must not block the
+        # throttled callers); the global count taken above is logged even
+        # when this warning is over the cap
+        self._log_pending(" (all sources)", *global_pending)
+        if over_cap:
+            return
+        text = message % args if args else message
+        if suppressed and since is not None:
+            stamp = since.isoformat(timespec="seconds")
+            text += f" ({suppressed} similar warnings suppressed since {stamp})"
+        log.warning("%s", text)
 
     def flush(self) -> None:
         """Log the counts of warnings suppressed and not reported yet, if any:
@@ -397,9 +402,6 @@ class _ThrottledWarning:
 
 # peers tracked by the untrusted peer warning (least recently seen dropped)
 UNTRUSTED_PEERS_TRACKED = 256
-# refused names tracked by the refused proxy name warning (same bound, own
-# constant)
-REFUSED_NAMES_TRACKED = 256
 
 
 class AuthWarnings:
@@ -423,9 +425,7 @@ class AuthWarnings:
         # invisible character...): one window per refused name, keyed as
         # described in user_from_proxy() (the peer is the trusted proxy,
         # nearly always one)
-        self.refused_proxy_user = _ThrottledWarning(
-            "proxy header user name refused", max_keys=REFUSED_NAMES_TRACKED
-        )
+        self.refused_proxy_user = _ThrottledWarning("proxy header user name refused")
 
     def all(self) -> tuple[_ThrottledWarning, ...]:
         return (self.undecodable_proxy_header, self.untrusted_proxy_peer, self.refused_proxy_user)

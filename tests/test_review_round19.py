@@ -314,3 +314,38 @@ def test_count_lines_share_one_prefix(monkeypatch, caplog):
     throttled.flush()
     prefix = "label: 1 similar warnings suppressed since 2026-05-06T07:08:09+00:00"
     assert sorted(r.getMessage() for r in caplog.records) == [prefix, f"{prefix}: k"]
+    # the global line too
+    capped = auth._ThrottledWarning("label", max_lines=0)
+    capped.warning("w", key="k")
+    caplog.clear()
+    capped.flush()
+    assert [r.getMessage() for r in caplog.records] == [f"{prefix} (all sources)"]
+
+
+def test_a_percent_in_a_message_without_args_survives_the_suffix(monkeypatch, caplog):
+    caplog.set_level(logging.WARNING)
+    clock = _clock(monkeypatch)
+    _fixed_now(monkeypatch)
+    throttled = auth._ThrottledWarning("label")
+    for _ in range(2):
+        throttled.warning("bad header 100%", key="k")
+    clock[0] += 61
+    caplog.clear()
+    throttled.warning("bad header 100%", key="k")
+    assert [r.getMessage() for r in caplog.records] == [
+        "bad header 100% (1 similar warnings suppressed since 2026-05-06T07:08:09+00:00)"
+    ]
+
+
+def test_the_global_count_is_not_lost_when_every_line_is_over_the_cap(monkeypatch, caplog):
+    caplog.set_level(logging.WARNING)
+    clock = _clock(monkeypatch)
+    _fixed_now(monkeypatch)
+    capped = auth._ThrottledWarning("label", max_lines=0)
+    capped.warning("w", key="a")
+    clock[0] += 61
+    caplog.clear()
+    capped.warning("w", key="b")
+    assert [r.getMessage() for r in caplog.records] == [
+        "label: 1 similar warnings suppressed since 2026-05-06T07:08:09+00:00 (all sources)"
+    ]
