@@ -329,6 +329,7 @@ def test_a_percent_in_a_message_without_args_survives_the_suffix(monkeypatch, ca
     throttled = auth._ThrottledWarning("label")
     for _ in range(2):
         throttled.warning("bad header 100%", key="k")
+    assert [r.getMessage() for r in caplog.records] == ["bad header 100%"]
     clock[0] += 61
     caplog.clear()
     throttled.warning("bad header 100%", key="k")

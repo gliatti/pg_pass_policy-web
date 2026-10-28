@@ -357,7 +357,7 @@ class _ThrottledWarning:
         count, which a later call or flush() logs (see the class docstring)."""
         now = time.monotonic()
         global_pending: tuple[int, datetime | None] = (0, None)
-        suppressed, since = 0, None
+        suppressed, since = 0, None  # set below unless over the cap (for type checkers)
         with self._lock:
             window = self._windows.get(key)
             if window is None:
@@ -389,10 +389,11 @@ class _ThrottledWarning:
         self._log_pending(" (all sources)", *global_pending)
         if over_cap:
             return
-        # a message without args is escaped on every line, so that one
-        # warning keeps one template whether a count is added or not
+        # a message without args becomes the argument of a "%s" template
+        # (logging does not %-format a record without args): its % stays as
+        # is, whether a count is added or not
         if not args:
-            message = message.replace("%", "%%")
+            message, args = "%s", (message,)
         if suppressed and since is not None:
             message += " (" + SUPPRESSED + ")"
             args = (*args, *_suppressed_args(suppressed, since))
