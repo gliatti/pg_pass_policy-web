@@ -328,7 +328,9 @@ class _ThrottledWarning:
 
     def _log_pending(self, tail: str, suppressed: int, since: datetime | None) -> None:
         """One count line: the label, the count, then `tail` (": <key>" or
-        " (all sources)")."""
+        " (all sources)").  The count right after the label gives every count
+        line the same prefix, whatever the key: keep this order, log filters
+        may rely on it."""
         if suppressed and since is not None:
             log.warning(
                 "%s: %d similar warnings suppressed since %s%s",
@@ -341,7 +343,9 @@ class _ThrottledWarning:
     def warning(self, message: str, *args: object, key: str = "") -> None:
         """Log `message` at most once per interval for `key` (with the count
         suppressed since), and at most `max_lines` lines per interval for all
-        keys together, plus one global count line carrying the overflow."""
+        keys together, plus one global count line: the warnings over that
+        cap and the pending counts of evicted keys go to the global count,
+        logged with the first warning of a later interval or by flush()."""
         now = time.monotonic()
         global_pending: tuple[int, datetime | None] = (0, None)
         with self._lock:
@@ -412,10 +416,9 @@ class AuthWarnings:
             "proxy header refused from untrusted peer", max_keys=UNTRUSTED_PEERS_TRACKED
         )
         # a proxy header holding a name refused by app.usernames (NFKC,
-        # invisible character...): the reason and the escaped name, per
-        # refused name (reason, escaped name and keyed digest of the full
-        # name, see user_from_proxy(); the peer is the trusted proxy, nearly
-        # always one)
+        # invisible character...): one window per refused name, keyed as
+        # described in user_from_proxy() (the peer is the trusted proxy,
+        # nearly always one)
         self.refused_proxy_user = _ThrottledWarning(
             "proxy header user name refused", max_keys=UNTRUSTED_PEERS_TRACKED
         )
