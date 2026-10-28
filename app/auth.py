@@ -412,8 +412,9 @@ class AuthWarnings:
         )
         # a proxy header holding a name refused by app.usernames (NFKC,
         # invisible character...): the reason and the escaped name, per
-        # refused name (escaped name + keyed digest of the full name; the
-        # peer is the trusted proxy, nearly always one)
+        # refused name (escaped name + keyed digest of the full name, see
+        # user_from_proxy(); the peer is the trusted proxy, nearly always
+        # one)
         self.refused_proxy_user = _ThrottledWarning(
             "proxy header user name refused", max_keys=UNTRUSTED_PEERS_TRACKED
         )
@@ -430,8 +431,7 @@ class AuthWarnings:
 def _name_digest(settings: Settings, user: str) -> str:
     """A short keyed digest of a refused user name (128 bits, hex); changes
     with PGPP_WEB_SECRET."""
-    message = user.encode("utf-8", "surrogatepass")
-    return _keyed_digest(settings, b"pgpp-web refused name", message)[:32]
+    return _keyed_digest(settings, b"pgpp-web refused name", user.encode("utf-8"))[:32]
 
 
 def user_from_proxy(request: Request, settings: Settings) -> str:
@@ -482,15 +482,16 @@ def user_from_proxy(request: Request, settings: Settings) -> str:
         ) from None
     problem = user_name_problem(user)
     if problem is not None:
-        # keyed by the reason, the displayed name and a keyed digest of the
-        # full name (HMAC with PGPP_WEB_SECRET, so that the log holds no
-        # checkable hash of the cut tail): bounded, and two names cut alike
-        # keep their own window; the peer first, then this subject, also
-        # cited by the line written at shutdown
-        subject = f"{problem}: {loggable(user, USER_MAX_LENGTH)} [{_name_digest(settings, user)}]"
+        # keyed by the displayed name and a keyed digest of the full name
+        # (HMAC with PGPP_WEB_SECRET, so that the log holds no checkable hash
+        # of the cut tail): bounded, and two names cut alike keep their own
+        # window; the reason follows from the name, so it stays out of the
+        # key (the line written at shutdown cites the key, not the reason)
+        subject = f"{loggable(user, USER_MAX_LENGTH)} [{_name_digest(settings, user)}]"
         warnings.refused_proxy_user.warning(
-            "proxy header user name refused from peer %s: %s",
+            "proxy header user name refused from peer %s: %s: %s",
             _peer(request),
+            problem,
             subject,
             key=subject,
         )

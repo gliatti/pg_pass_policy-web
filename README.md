@@ -204,7 +204,8 @@ ligature, exposant…) ou un caractère invisible (sélecteur de variante,
 remplissage hangûl…). Chaque refus est journalisé en `WARNING`, au plus une
 ligne par minute et par nom refusé, avec le pair, le motif, le nom échappé
 puis son empreinte (un relais qui coupe une ligne trop longue en perd
-d'abord l'empreinte et la fin du nom) :
+d'abord la fin : le compte omis s'il y en a un, puis l'empreinte et la fin
+du nom) :
 
 ```text
 proxy header user name refused from peer 10.0.0.9: character U+FE0F not allowed (invisible): "bob\ufe0f" [<empreinte>]
@@ -325,7 +326,7 @@ l'en-tête du proxy porte le nom après le motif (`… from peer <adresse>:
 <motif>: "<nom>" [<empreinte>]`), suivi, quand des lignes ont été omises
 avant elle, du compte omis (` (3 similar warnings suppressed since …)`) ;
 la ligne écrite à l'arrêt pour ce compte cite la clé puis le compte
-(`proxy header user name refused <motif>: "<nom>" [<empreinte>]: 3 similar
+(`proxy header user name refused "<nom>" [<empreinte>]: 3 similar
 warnings suppressed since …`) ; l'erreur de démarrage sur `PGPP_WEB_BASIC_USERS`
 cite le nom, puis le motif et la règle (`user name "<nom>" refused: <motif>; a
 user name must be …`).
@@ -345,12 +346,13 @@ diffère : une adresse IPv4 mappée comme l'adresse IPv4
 nom refusé : la clé est le nom échappé et coupé à 128 caractères, suivi
 d'une empreinte du nom complet (HMAC-SHA-256 avec `PGPP_WEB_SECRET`, 128
 bits : le journal ne contient aucun condensé vérifiable de la partie
-coupée), le tout précédé du motif ; la ligne et la ligne écrite à l'arrêt
-citent cette clé (`character U+200B not allowed (category Cf):
-"bob\u200b" [<empreinte>]`) : deux noms coupés à l'identique gardent
-chacun leur fenêtre. L'empreinte change avec `PGPP_WEB_SECRET` : après
-un changement de secret, les lignes d'avant et d'après ne se relient plus
-par elle ; le pair n'en fait pas partie : c'est presque
+coupée) ; la ligne et la ligne écrite à l'arrêt citent cette clé
+(`"bob\u200b" [<empreinte>]`) : deux noms coupés à l'identique gardent
+chacun leur fenêtre, et la ligne de l'arrêt, qui ne cite pas le motif, se
+relie par l'empreinte à la ligne qui le donne. L'empreinte change avec `PGPP_WEB_SECRET` : après
+un changement de secret (qui demande un redémarrage), les lignes d'avant
+et d'après ne se relient plus par elle et un même nom y apparaît sous deux
+empreintes ; le pair n'en fait pas partie : c'est presque
 toujours l'unique mandataire. Les 256
 derniers pairs (ou clés) vus sont suivis ; au-delà, le plus anciennement vu est oublié et son compte en
 attente s'ajoute à un compteur global, sans plus être attribué à ce pair.
