@@ -324,7 +324,13 @@ class _ThrottledWarning:
     ):
         # the label starts every count line ("<label>: N similar..."): one
         # printable line, no outer space, no ": " that would blur the prefix
-        if not label.isprintable() or label != label.strip() or not label or ": " in label:
+        if (
+            not isinstance(label, str)
+            or not label
+            or not label.isprintable()
+            or label != label.strip()
+            or ": " in label
+        ):
             raise ValueError(f"unusable warning label {label!r}")
         self.label = label
         self.interval = interval

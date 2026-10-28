@@ -100,7 +100,7 @@ def test_the_peers_tracked_are_bounded_least_recently_seen_dropped(monkeypatch, 
 
 
 def test_unusable_or_duplicate_labels_are_refused():
-    for bad in ("", " ", " x", "x ", "a\nb", "a: b"):
+    for bad in ("", " ", " x", "x ", "a\nb", "a: b", None):
         with pytest.raises(ValueError):
             auth._ThrottledWarning(bad)
     warnings = auth.AuthWarnings()
@@ -118,15 +118,14 @@ def test_every_warning_tracks_256_keys(monkeypatch, caplog):
     assert list(warnings.all()) == attributes
     assert len(set(map(id, attributes))) == len(attributes)
     # the labels, which COUNT_LINE puts first (format pinned by
-    # test_count_lines_share_one_prefix); _register refuses bad or duplicate
-    # ones
+    # test_count_lines_share_one_prefix); bad labels and duplicates are
+    # refused at creation (test_unusable_or_duplicate_labels_are_refused)
     assert {t.label for t in warnings.all()} == {
         "proxy header not decodable",
         "proxy header refused from untrusted peer",
         "proxy header user name refused",
     }
-    labels = [t.label for t in warnings.all()]
-    assert len(set(labels)) == len(labels), labels
+    assert len(warnings.all()) == 3
     for throttled in warnings.all():
         assert throttled.max_keys == auth.TRACKED_KEYS, throttled.label
         for i in range(300):
