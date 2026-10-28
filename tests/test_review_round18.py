@@ -99,6 +99,15 @@ def test_the_peers_tracked_are_bounded_least_recently_seen_dropped(monkeypatch, 
     ]
 
 
+def test_unusable_or_duplicate_labels_are_refused():
+    for bad in ("", " ", " x", "x ", "a\nb", "a: b"):
+        with pytest.raises(ValueError):
+            auth._ThrottledWarning(bad)
+    warnings = auth.AuthWarnings()
+    with pytest.raises(ValueError):
+        warnings._register("proxy header not decodable")
+
+
 def test_every_warning_tracks_256_keys(monkeypatch, caplog):
     caplog.set_level(logging.CRITICAL)
     _clock(monkeypatch)
@@ -116,9 +125,8 @@ def test_every_warning_tracks_256_keys(monkeypatch, caplog):
         "proxy header refused from untrusted peer",
         "proxy header user name refused",
     }
-    for bad in ("", " x", "proxy header not decodable"):
-        with pytest.raises(ValueError):
-            warnings._register(bad)
+    labels = [t.label for t in warnings.all()]
+    assert len(set(labels)) == len(labels), labels
     for throttled in warnings.all():
         assert throttled.max_keys == auth.TRACKED_KEYS, throttled.label
         for i in range(300):

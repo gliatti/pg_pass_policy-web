@@ -322,6 +322,10 @@ class _ThrottledWarning:
         max_keys: int = TRACKED_KEYS,
         max_lines: int = MAX_LINES_PER_INTERVAL,
     ):
+        # the label starts every count line ("<label>: N similar..."): one
+        # printable line, no outer space, no ": " that would blur the prefix
+        if not label.isprintable() or label != label.strip() or not label or ": " in label:
+            raise ValueError(f"unusable warning label {label!r}")
         self.label = label
         self.interval = interval
         self.max_keys = max_keys
@@ -440,9 +444,9 @@ class AuthWarnings:
     def _register(self, label: str) -> _ThrottledWarning:
         """The only way to create a warning here: registered, so that flush()
         (and the tests that reset every warning) cannot miss it."""
-        # the label starts every count line: a usable, distinct prefix
-        if not label or label != label.strip() or label in {t.label for t in self._all}:
-            raise ValueError(f"bad or duplicate warning label {label!r}")
+        # distinct labels, so that count lines tell the warnings apart
+        if any(t.label == label for t in self._all):
+            raise ValueError(f"duplicate warning label {label!r}")
         throttled = _ThrottledWarning(label)
         self._all.append(throttled)
         return throttled
