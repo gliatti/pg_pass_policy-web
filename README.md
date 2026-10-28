@@ -1,5 +1,44 @@
 # pgpp-web — back-office web de pg_pass_policy
 
+Ce dépôt contient le back-office web de l'extension PostgreSQL
+[`pg_pass_policy`](https://github.com/gliatti/pg_pass_policy), qui se trouve
+dans un dépôt séparé. Version minimale de l'extension : **1.0**. Le contrat
+technique de l'extension (API SQL, codes d'erreur) est décrit dans
+[`docs/SPEC.md`](https://github.com/gliatti/pg_pass_policy/blob/main/docs/SPEC.md).
+Les tests d'intégration ont besoin d'une copie du dépôt de l'extension,
+désignée par la variable `PG_PASS_POLICY_SRC` (voir [Tests](#tests)).
+
+> [!CAUTION]
+> **À la charge de l'exploitation.** `rotate_password()` et `switch_rotation_pair()`
+> renvoient le nouveau mot de passe en clair à l'appelant, une seule fois. Le
+> serveur ne le stocke ni ne le journalise, mais sa protection en dehors du
+> serveur dépend de votre configuration :
+>
+> - **Transport** : sans TLS, le mot de passe circule en clair sur le réseau.
+>   Imposez `hostssl` dans `pg_hba.conf` pour les comptes d'administration, et
+>   `sslmode=verify-full` côté client.
+> - **Client** : le résultat peut être conservé par l'outil qui l'affiche
+>   (défilement du terminal, grilles de résultats de pgAdmin ou DBeaver, logs
+>   applicatifs qui écrivent les lignes renvoyées). Préférez
+>   `pgpp rotate --vault-kv` ou `--exec`, qui ne passent ni par l'écran ni par une
+>   variable d'environnement.
+> - **Rôle `pass_policy_admin`** : un membre peut obtenir le mot de passe de tout
+>   rôle non privilégié. Accordez-le avec parcimonie.
+> - **Superutilisateur** : ajoutez `pg_pass_policy.exempt_roles = 'postgres'`
+>   (ou votre compte d'administration) pour ne pas vous verrouiller dehors :
+>   pendant la fenêtre de démarrage, tout rôle non exempté est refusé
+>   (`57P03`), quelle que soit la méthode (`trust` et `peer` compris). Seule
+>   exception, la voie de secours, désactivée par défaut : un
+>   superutilisateur listé dans `pg_pass_policy.rescue_roles` et authentifié
+>   en `peer` passe (sauf verrou déjà en mémoire partagée, mais **même s'il
+>   est verrouillé dans `role_state`** : ce verrou n'est pas encore connu) ;
+>   n'y listez qu'un compte d'administration lié à un compte système, avec
+>   une ligne `local … peer` dans `pg_hba.conf`. `trust` n'y donne pas accès
+>   et la liste est vide par défaut : le refus `57P03` porte un HINT qui
+>   rappelle cette voie (« … through peer authentication as a superuser
+>   listed in pg_pass_policy.rescue_roles », même texte pour tout client).
+>   Un rôle exempté ne peut être ni expiré ni verrouillé par l'extension.
+
 Interface d'administration de l'extension PostgreSQL `pg_pass_policy`
 (FastAPI + Jinja2 + HTMX, psycopg 3). Elle ne fait rien d'autre que ce que
 l'API SQL du schéma `pass_policy` autorise : toutes les actions passent par les
@@ -55,10 +94,10 @@ n'apparaît jamais dans la liste « Expiring or expired » du tableau de bord.
 
 Prérequis : Python ≥ 3.11, FastAPI ≥ 0.118 (dépendances déclarées avec
 `Depends(..., scope="function")`), une base où `pg_pass_policy` est installée
-(`shared_preload_libraries`, `CREATE EXTENSION pg_pass_policy`).
+(`shared_preload_libraries`, `CREATE EXTENSION pg_pass_policy`, voir le
+[README de l'extension](https://github.com/gliatti/pg_pass_policy#readme)).
 
 ```sh
-cd web
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -e '.[dev]'      # ou `pip install .` sans les outils de test
@@ -543,15 +582,24 @@ pytest                     # tests unitaires seuls : 193 (27 tests d'intégratio
 Les tests d'intégration ont besoin d'une base réelle avec l'extension
 chargée ; ils sont ignorés quand `PGPP_TEST_URL` est absente. Le script
 `scripts/test-instance.sh` crée une instance temporaire (initdb, port TCP
-local, scram-sha-256, extension installée depuis le `pg_config` du `PATH`, rôle
-`pgpp_web` membre de `pass_policy_admin` avec `CREATEROLE` pour les besoins
-des tests) et affiche les variables à exporter ; les mots de passe générés vont
+local, scram-sha-256, extension chargée depuis le PostgreSQL du `pg_config` du
+`PATH`, rôle `pgpp_web` membre de `pass_policy_admin` avec `CREATEROLE` pour
+les besoins des tests) et affiche les variables à exporter ; les mots de passe générés vont
 dans un fichier `pgpass` (0600), jamais sur une ligne de commande. Le script
 ne supprime (`rm -rf`) que le répertoire qu'il a lui-même créé, reconnu à son
 fichier marqueur `.pgpp-web-test-instance` : un répertoire existant non vide
-sans ce marqueur est refusé, à `start` comme à `stop` :
+sans ce marqueur est refusé, à `start` comme à `stop`.
+
+L'extension (version 1.0 ou ultérieure) se compile depuis une copie de son
+dépôt, désignée par la variable `PG_PASS_POLICY_SRC` : `start` la construit
+dans un sous-répertoire de l'instance (rien n'est écrit dans la copie) et
+l'installe dans le PostgreSQL du `pg_config` du `PATH`, sauf si les fichiers
+installés sont déjà identiques. Sans `PG_PASS_POLICY_SRC`, l'extension doit
+déjà y être installée, sinon `start` échoue avec un message qui le dit :
 
 ```sh
+git clone https://github.com/gliatti/pg_pass_policy /chemin/vers/pg_pass_policy
+export PG_PASS_POLICY_SRC=/chemin/vers/pg_pass_policy
 eval "$(scripts/test-instance.sh start /tmp/pgpp-web-test 54332)"
 pytest                     # 220 tests : unitaires + intégration
 scripts/test-instance.sh stop /tmp/pgpp-web-test
@@ -578,7 +626,7 @@ page 500 journalisée d'une erreur inattendue pendant une action.
 ## Arborescence
 
 ```
-web/
+pg_pass_policy-web/
 ├── pyproject.toml           projet pgpp-web (extras dev : pytest, httpx, ruff)
 ├── app/
 │   ├── main.py              factory FastAPI, middlewares, gestion des erreurs

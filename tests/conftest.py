@@ -4,8 +4,9 @@ Unit tests build the app without opening the pool (no lifespan).
 Integration tests need PGPP_TEST_URL (connection string of a role member of
 pass_policy_admin on a database where pg_pass_policy is installed) and,
 optionally, PGPP_TEST_SUPER_URL (a superuser, used to create and drop the
-test roles); they are skipped otherwise.  web/scripts/test-instance.sh starts
-such an instance and prints the variables to export.
+test roles); they are skipped otherwise.  scripts/test-instance.sh starts
+such an instance (installing the extension from PG_PASS_POLICY_SRC when
+set) and prints the variables to export.
 """
 
 from __future__ import annotations

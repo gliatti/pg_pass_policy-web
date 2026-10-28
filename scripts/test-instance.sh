@@ -20,10 +20,15 @@
 # "start" prints the environment to export for pytest:
 #   PGPASSFILE, PGPP_TEST_URL (role pgpp_web), PGPP_TEST_SUPER_URL (superuser).
 #
-# The extension must be installed in the PostgreSQL pointed to by pg_config
-# (make install) and loaded via shared_preload_libraries: the socket directory
-# is not used (the path may exceed the Unix socket length limit), everything
-# goes through TCP on 127.0.0.1 with scram-sha-256.
+# The extension (https://github.com/gliatti/pg_pass_policy, version 1.0 or
+# later) must be installed in the PostgreSQL pointed to by pg_config; it is
+# loaded via shared_preload_libraries.  When PG_PASS_POLICY_SRC names a copy
+# of the extension repository, "start" builds it in DIR/ext-build (nothing is
+# written into the copy) and installs it, unless the installed files are
+# already identical; without PG_PASS_POLICY_SRC, an extension missing from
+# pg_config's share directory is a clear error.  The socket directory is not
+# used (the path may exceed the Unix socket length limit), everything goes
+# through TCP on 127.0.0.1 with scram-sha-256.
 set -euo pipefail
 
 cmd=${1:-}
@@ -34,6 +39,7 @@ if [ -z "$cmd" ] || [ -z "$dir" ]; then
 	exit 2
 fi
 bindir=$(pg_config --bindir)
+pg_config=$(command -v pg_config)
 superuser=pgpp_super
 db=postgres
 
@@ -58,6 +64,48 @@ check_owned() {
 	fi
 }
 
+# build and install the extension from PG_PASS_POLICY_SRC, or check that it
+# is already installed
+install_extension() {
+	local lib ext src build
+	lib=$("$pg_config" --pkglibdir)
+	ext=$("$pg_config" --sharedir)/extension
+	src=${PG_PASS_POLICY_SRC:-}
+	if [ -z "$src" ]; then
+		if [ ! -f "$ext/pg_pass_policy.control" ]; then
+			echo "pg_pass_policy is not installed for $pg_config: set PG_PASS_POLICY_SRC to a copy of https://github.com/gliatti/pg_pass_policy" >&2
+			exit 1
+		fi
+		return 0
+	fi
+	if [ ! -f "$src/pg_pass_policy.control" ] || [ ! -f "$src/Makefile" ]; then
+		echo "PG_PASS_POLICY_SRC=$src is not a copy of https://github.com/gliatti/pg_pass_policy" >&2
+		exit 1
+	fi
+	build=$dir/ext-build
+	mkdir -p "$build/src" "$build/sql"
+	cp "$src/Makefile" "$src/pg_pass_policy.control" "$build/"
+	cp "$src"/sql/*.sql "$build/sql/"
+	cp "$src"/src/*.c "$src"/src/*.h "$build/src/"
+	if ! make -s -C "$build" PG_CONFIG="$pg_config" all >"$build/make.log" 2>&1; then
+		tail -30 "$build/make.log" >&2
+		exit 1
+	fi
+	# already installed and identical: nothing to replace
+	local same=1 f
+	for f in "$build/pg_pass_policy.so" "$build/pg_pass_policy.control" "$build"/sql/*.sql; do
+		case $f in
+		*.so) cmp -s "$f" "$lib/$(basename "$f")" || same=0 ;;
+		*) cmp -s "$f" "$ext/$(basename "$f")" || same=0 ;;
+		esac
+	done
+	[ "$same" = 1 ] && return 0
+	if ! make -s -C "$build" PG_CONFIG="$pg_config" install >>"$build/make.log" 2>&1; then
+		tail -30 "$build/make.log" >&2
+		exit 1
+	fi
+}
+
 psql_super() {
 	PGPASSFILE="$dir/pgpass" "$bindir/psql" -X -q -At -v ON_ERROR_STOP=1 \
 		-h 127.0.0.1 -p "$port" -U "$superuser" -d "$db" "$@"
@@ -75,6 +123,7 @@ start)
 	chmod 700 "$dir"
 	umask 077
 	: >"$dir/$marker"
+	install_extension
 	# superuser password: generated, written to a file for initdb --pwfile
 	python3 -c 'import secrets; print(secrets.token_urlsafe(24))' >"$dir/super.pw"
 	"$bindir/initdb" -D "$dir/data" -U "$superuser" -A scram-sha-256 --pwfile="$dir/super.pw" \
