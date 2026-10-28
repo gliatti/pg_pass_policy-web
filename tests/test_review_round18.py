@@ -99,7 +99,7 @@ def test_the_peers_tracked_are_bounded_least_recently_seen_dropped(monkeypatch, 
     ]
 
 
-def test_the_default_bound_is_256_keys_for_every_warning(monkeypatch):
+def test_the_default_bound_is_256_keys(monkeypatch):
     _clock(monkeypatch)
     warnings = auth.AuthWarnings()
     assert warnings.untrusted_proxy_peer.max_keys == auth.TRACKED_KEYS == 256
