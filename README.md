@@ -326,9 +326,9 @@ l'en-tête du proxy cite le pair puis la clé, faite du motif, du nom et de
 l'empreinte (`… from peer <adresse>: <motif>: "<nom>" [<empreinte>]`),
 suivie, quand des lignes ont été omises
 avant elle, du compte omis (` (3 similar warnings suppressed since …)`) ;
-la ligne écrite à l'arrêt pour ce compte cite la clé puis le compte
-(`proxy header user name refused <motif>: "<nom>" [<empreinte>]: 3
-similar warnings suppressed since …`) ; l'erreur de démarrage sur
+la ligne écrite à l'arrêt pour ce compte cite le compte puis la clé
+(`proxy header user name refused: 3 similar warnings suppressed since …:
+<motif>: "<nom>" [<empreinte>]`) ; l'erreur de démarrage sur
 `PGPP_WEB_BASIC_USERS` cite le nom, puis le motif et la règle (`user name
 "<nom>" refused: <motif>; a user name must be …`).
 
@@ -351,8 +351,8 @@ vérifiable de la partie coupée) : `<motif>: "bob\u200b" [<empreinte>]`.
 L'empreinte suffit à garder une fenêtre propre à chacun de deux noms coupés
 à l'identique. La ligne écrite à l'arrêt cite cette clé, et dit donc
 pourquoi le nom a été refusé même si la ligne qui l'a d'abord signalé a
-quitté le journal ; le compte y vient en dernier, et un relais qui coupe
-une ligne trop longue peut le perdre. L'empreinte change avec
+quitté le journal ; le compte y précède la clé, et un relais qui coupe
+une ligne trop longue le garde. L'empreinte change avec
 `PGPP_WEB_SECRET` : après un changement de secret (qui demande un
 redémarrage), un même nom apparaît sous deux empreintes, et les lignes
 d'avant et d'après ne se relient plus par elle. Le pair ne fait pas
@@ -364,8 +364,8 @@ Toutes clés confondues, chaque avertissement écrit au plus 20 lignes par
 minute (et à l'arrêt, au plus 20 lignes de comptes en attente, pour les
 clés vues le plus récemment, dans l'ordre de leur dernière occurrence, la
 ligne globale en dernier) : au-delà, les omissions
-s'ajoutent à ce même compteur global, écrit en une ligne (`… (all sources):
-57 similar warnings suppressed since …`) avec le premier avertissement d'une
+s'ajoutent à ce même compteur global, écrit en une ligne (`…: 57 similar
+warnings suppressed since … (all sources)`) avec le premier avertissement d'une
 minute suivante ou à l'arrêt de l'application.
 
 Derrière HTTPS, `PGPP_WEB_SESSION_HTTPS_ONLY=true` est requis : le cookie de

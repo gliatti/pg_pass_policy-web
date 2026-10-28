@@ -91,7 +91,7 @@ def test_the_lines_are_capped_for_all_keys(monkeypatch, caplog):
     clock[0] += 60
     throttled.warning("w %s", 10, key="10")
     assert [r.getMessage() for r in caplog.records] == [
-        "probe (all sources): 7 similar warnings suppressed since 2026-05-06T07:08:09+00:00",
+        "probe: 7 similar warnings suppressed since 2026-05-06T07:08:09+00:00 (all sources)",
         "w 10",
     ]
     caplog.clear()
@@ -111,8 +111,8 @@ def test_the_global_count_is_flushed_at_shutdown(monkeypatch, caplog):
     throttled.flush()
     assert [r.getMessage() for r in caplog.records] == [
         "w",
-        "probe a: 1 similar warnings suppressed since 2026-05-06T07:08:09+00:00",
-        "probe (all sources): 1 similar warnings suppressed since 2026-05-06T07:08:09+00:00",
+        "probe: 1 similar warnings suppressed since 2026-05-06T07:08:09+00:00: a",
+        "probe: 1 similar warnings suppressed since 2026-05-06T07:08:09+00:00 (all sources)",
     ]
 
 
@@ -130,8 +130,8 @@ def test_a_scan_of_many_peers_writes_at_most_the_cap(monkeypatch, caplog):
     caplog.clear()
     warnings.flush()
     assert [r.getMessage() for r in caplog.records] == [
-        "proxy header refused from untrusted peer (all sources):"
-        " 980 similar warnings suppressed since 2026-05-06T07:08:09+00:00"
+        "proxy header refused from untrusted peer:"
+        " 980 similar warnings suppressed since 2026-05-06T07:08:09+00:00 (all sources)"
     ]
 
 
@@ -193,9 +193,10 @@ def test_a_refused_proxy_name_is_logged_with_its_reason(monkeypatch, caplog):
     caplog.clear()
     warnings.flush()
     assert [r.getMessage() for r in caplog.records] == [
-        "proxy header user name refused character U+FE0F not allowed (invisible):"
-        f' "bob\\ufe0f" [{auth._name_digest(settings, "bob" + chr(0xFE0F))}]:'
-        " 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00"
+        "proxy header user name refused:"
+        " 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00:"
+        " character U+FE0F not allowed (invisible):"
+        f' "bob\\ufe0f" [{auth._name_digest(settings, "bob" + chr(0xFE0F))}]'
     ]
     assert warnings.refused_proxy_user in warnings.all()
 
@@ -240,11 +241,11 @@ def test_flush_writes_at_most_the_cap_per_key(monkeypatch, caplog):
     throttled.flush()
     assert [r.getMessage() for r in caplog.records] == [
         *(
-            f"probe {k}: 1 similar warnings suppressed since 2026-05-06T07:08:09+00:00"
+            f"probe: 1 similar warnings suppressed since 2026-05-06T07:08:09+00:00: {k}"
             # the most recently seen keys, in the order of their last occurrence
             for k in "cde"
         ),
-        "probe (all sources): 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00",
+        "probe: 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00 (all sources)",
     ]
 
 
@@ -257,7 +258,7 @@ def test_the_earliest_since_is_kept():
     assert window.take() == (2, earlier)
 
 
-def test_refused_proxy_names_are_keyed_by_name_and_digest(monkeypatch, caplog):
+def test_refused_proxy_names_are_keyed_by_reason_name_and_digest(monkeypatch, caplog):
     caplog.set_level(logging.WARNING)
     _clock(monkeypatch)
     warnings = auth.AuthWarnings()

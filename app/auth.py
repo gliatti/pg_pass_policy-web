@@ -325,22 +325,22 @@ class _ThrottledWarning:
             self._global_start, self._global_lines = None, 0
             self._global = _Window()
 
-    def _subject(self, key: str) -> str:
-        return f"{self.label} {key}" if key else self.label
-
-    def _log_pending(self, subject: str, suppressed: int, since: datetime | None) -> None:
+    def _log_pending(self, tail: str, suppressed: int, since: datetime | None) -> None:
+        """One count line: the label, the count, then `tail` (": <key>" or
+        " (all sources)"), so that a relay cutting a long line keeps the count."""
         if suppressed and since is not None:
             log.warning(
-                "%s: %d similar warnings suppressed since %s",
-                subject,
+                "%s: %d similar warnings suppressed since %s%s",
+                self.label,
                 suppressed,
                 since.isoformat(timespec="seconds"),
+                tail,
             )
 
-    def _global_subject(self) -> str:
-        return f"{self.label} (all sources)"
-
     def warning(self, message: str, *args: object, key: str = "") -> None:
+        """Log `message` at most once per interval for `key` (with the count
+        suppressed since), and at most `max_lines` lines per interval for all
+        keys together (beyond, the global count)."""
         now = time.monotonic()
         global_pending: tuple[int, datetime | None] = (0, None)
         with self._lock:
@@ -367,7 +367,7 @@ class _ThrottledWarning:
                 return
             self._global_lines += 1
             suppressed, since = window.take()
-        self._log_pending(self._global_subject(), *global_pending)
+        self._log_pending(" (all sources)", *global_pending)
         if suppressed and since is not None:
             message += " (%d similar warnings suppressed since %s)"
             args = (*args, suppressed, since.isoformat(timespec="seconds"))
@@ -385,8 +385,8 @@ class _ThrottledWarning:
                 self._global.add(suppressed, since)
             global_pending = self._global.take()
         for key, suppressed, since in reversed(pending[: self.max_lines]):
-            self._log_pending(self._subject(key), suppressed, since)
-        self._log_pending(self._global_subject(), *global_pending)
+            self._log_pending(f": {key}" if key else "", suppressed, since)
+        self._log_pending(" (all sources)", *global_pending)
 
 
 # peers tracked by the untrusted peer warning (least recently seen dropped)

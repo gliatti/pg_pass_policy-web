@@ -212,8 +212,8 @@ def test_suppressed_warnings_are_flushed_at_shutdown(monkeypatch, caplog):
     assert pool.closed
     assert [r.getMessage() for r in caplog.records] == [
         "proxy header refused from untrusted peer 192.168.1.9",
-        "proxy header refused from untrusted peer 192.168.1.9: 2 similar warnings suppressed"
-        " since 2026-05-06T07:08:09+00:00",
+        "proxy header refused from untrusted peer: 2 similar warnings suppressed"
+        " since 2026-05-06T07:08:09+00:00: 192.168.1.9",
     ]
 
 

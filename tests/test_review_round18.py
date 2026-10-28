@@ -68,8 +68,8 @@ def test_untrusted_peer_warnings_are_throttled_per_peer(monkeypatch, caplog):
     caplog.clear()
     app.state.auth_warnings.flush()
     assert [r.getMessage() for r in caplog.records] == [
-        "proxy header refused from untrusted peer 192.168.1.9:"
-        " 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00"
+        "proxy header refused from untrusted peer:"
+        " 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00: 192.168.1.9"
     ]
 
 
@@ -95,7 +95,7 @@ def test_the_peers_tracked_are_bounded_least_recently_seen_dropped(monkeypatch, 
     caplog.clear()
     throttled.flush()
     assert [r.getMessage() for r in caplog.records] == [
-        "probe (all sources): 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00",
+        "probe: 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00 (all sources)",
     ]
 
 
@@ -138,15 +138,15 @@ def test_each_application_has_its_own_throttled_warnings(monkeypatch, caplog):
     with TestClient(second):
         pass
     assert [r.getMessage() for r in caplog.records] == [
-        "proxy header refused from untrusted peer 192.168.1.9:"
-        " 1 similar warnings suppressed since 2026-05-06T07:08:09+00:00"
+        "proxy header refused from untrusted peer:"
+        " 1 similar warnings suppressed since 2026-05-06T07:08:09+00:00: 192.168.1.9"
     ]
     caplog.clear()
     with TestClient(first):
         pass
     assert [r.getMessage() for r in caplog.records] == [
-        "proxy header refused from untrusted peer 192.168.1.9:"
-        " 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00"
+        "proxy header refused from untrusted peer:"
+        " 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00: 192.168.1.9"
     ]
 
 
