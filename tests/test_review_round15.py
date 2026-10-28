@@ -7,6 +7,7 @@ filter checked before the query, pool settings validated."""
 from __future__ import annotations
 
 import base64
+import json
 import logging
 from datetime import datetime
 from types import SimpleNamespace
@@ -16,7 +17,7 @@ import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
 
-from app import auth, db
+from app import auth, db, usernames
 from app.main import create_app
 from app.routers import audit, maintenance, roles
 from tests.conftest import TEST_HASH, TEST_PASSWORD, TEST_USER, add_probe_routes, make_settings
@@ -91,7 +92,7 @@ def _proxy_request(raw: bytes, warnings: auth.AuthWarnings | None = None) -> Req
 )
 def test_c1_controls_and_separators_are_refused(name):
     assert not auth._valid_user(name)
-    assert auth._loggable(name).isascii()
+    assert usernames.loggable(name) == json.dumps(name).replace("\x7f", "\\u007f")
     # (ASCII blanks around a proxy header are stripped, on the bytes)
     if name and name.strip(" ") == name:
         response = _proxy_client().get("/_whoami", headers={"X-Remote-User": name.encode()})
@@ -101,7 +102,10 @@ def test_c1_controls_and_separators_are_refused(name):
 @pytest.mark.parametrize("name", ["\xc9milie", "zo\xeb", "a b", "日本", "x" * 128])
 def test_printable_names_are_accepted(name):
     assert auth._valid_user(name)
-    assert auth._loggable(name).isascii()
+    cut = name[: usernames.LOGGED_NAME_MAX] + (
+        "..." if len(name) > usernames.LOGGED_NAME_MAX else ""
+    )
+    assert usernames.loggable(name) == json.dumps(cut)
     assert not auth._valid_user("x" * 129)
 
 

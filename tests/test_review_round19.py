@@ -143,7 +143,7 @@ def test_a_scan_of_many_peers_writes_at_most_the_cap(monkeypatch, caplog):
     ["alice", "x from 10.6.6.6", "x' from 10.6.6.6", 'x" from 10.6.6.6', "a\nb", "Émilie"],
 )
 def test_a_claimed_name_is_always_quoted(name):
-    logged = auth._loggable(name)
+    logged = usernames.loggable(name)
     assert logged == json.dumps(name)
     assert logged.isascii()
     assert logged[0] == logged[-1] == '"'
@@ -153,14 +153,14 @@ def test_a_claimed_name_is_always_quoted(name):
 def test_a_long_name_is_cut_before_escaping():
     # the longest escape: a character outside the BMP, two \\uXXXX
     name = "\U0001f600" * 200
-    logged = auth._loggable(name)
-    assert logged == json.dumps(name[: auth.LOGGED_NAME_MAX]) + "..."
+    logged = usernames.loggable(name)
+    assert logged == json.dumps(name[: usernames.LOGGED_NAME_MAX] + "...")
     assert logged.isascii()
-    assert len(logged) == 6 * 2 * auth.LOGGED_NAME_MAX + 2 + 3
+    assert len(logged) == 6 * 2 * usernames.LOGGED_NAME_MAX + 3 + 2
 
 
 def test_del_is_escaped():
-    assert auth._loggable("a\x7fb") == '"a\\u007fb"'
+    assert usernames.loggable("a\x7fb") == '"a\\u007fb"'
 
 
 def test_a_name_cannot_forge_the_peer_in_the_basic_failure_line(unit_client, caplog):
@@ -192,7 +192,7 @@ def test_a_refused_proxy_name_is_logged_with_its_reason(monkeypatch, caplog):
     caplog.clear()
     warnings.flush()
     assert [r.getMessage() for r in caplog.records] == [
-        'proxy header user name refused "bob\\ufe0f":'
+        'proxy header user name refused "bob\\ufe0f" (character U+FE0F not allowed (invisible)):'
         " 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00"
     ]
     assert warnings.refused_proxy_user in warnings.all()
@@ -239,7 +239,8 @@ def test_flush_writes_at_most_the_cap_per_key(monkeypatch, caplog):
     assert [r.getMessage() for r in caplog.records] == [
         *(
             f"probe {k}: 1 similar warnings suppressed since 2026-05-06T07:08:09+00:00"
-            for k in "abc"
+            # the most recently seen keys
+            for k in "edc"
         ),
         "probe (all sources): 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00",
     ]
@@ -264,4 +265,7 @@ def test_refused_proxy_names_are_keyed_by_name(monkeypatch, caplog):
             auth.user_from_proxy(_proxy_request(name.encode(), warnings), settings)
     # one proxy, two names: two lines
     assert len(caplog.records) == 2
-    assert list(warnings.refused_proxy_user._windows) == ['"bob\\ufe0f"', '"eve\\u200b"']
+    assert list(warnings.refused_proxy_user._windows) == [
+        '"bob\\ufe0f" (character U+FE0F not allowed (invisible))',
+        '"eve\\u200b" (character U+200B not allowed (category Cf))',
+    ]

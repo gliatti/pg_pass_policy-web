@@ -188,10 +188,10 @@ cette règle, et un seul nom qui ne la suit pas empêche le démarrage
 nom accepté par une version précédente peut donc être refusé : accent
 décomposé, espace insécable, caractère de largeur nulle, sélecteur de
 variante, forme pleine chasse ou ligature… Le message d'erreur cite le nom
-échappé en ASCII (`'bob\u200b'`), le motif et la règle :
+échappé en ASCII comme dans le journal (`"bob\u200b"`), le motif et la règle :
 
 ```text
-PGPP_WEB_BASIC_USERS: user name 'bob\u200b' refused: character U+200B not allowed (category Cf); a user name must be 1 to 128 characters, …
+PGPP_WEB_BASIC_USERS: user name "bob\u200b" refused: character U+200B not allowed (category Cf); a user name must be 1 to 128 characters, …
 ```
 
 Avant la mise à jour, vérifier les noms configurés, et renommer l'entrée
@@ -202,7 +202,7 @@ accepté par une version précédente peut désormais recevoir un 401, en
 particulier une forme de compatibilité (refusée par NFKC : pleine chasse,
 ligature, exposant…) ou un caractère invisible (sélecteur de variante,
 remplissage hangûl…). Chaque refus est journalisé en `WARNING`, au plus une
-ligne par minute et par nom refusé, avec le nom échappé et le motif :
+ligne par minute, par nom refusé et par motif, avec le nom échappé et le motif :
 
 ```text
 proxy header user name "bob\ufe0f" refused from peer 10.0.0.9: character U+FE0F not allowed (invisible)
@@ -315,8 +315,9 @@ inhérentes khmères), U+2800 (motif braille vide) ; U+3164 et U+FFA0
 titre. Un nom revendiqué est toujours journalisé échappé en ASCII et entre
 guillemets doubles (`"bob\u200b"`, échappement JSON : `"` et `\` échappés,
 tout caractère de contrôle ou non ASCII en `\uXXXX`), qu'il soit valide ou
-non, jamais tel quel ; au-delà de 64 caractères, il est coupé et suivi de
-`...`.
+non, jamais tel quel ; au-delà de 64 caractères, il est coupé et `...` est
+ajouté avant le guillemet fermant (`"aaaa..."`) : la ligne finit toujours
+par `" from <adresse>`.
 
 Les avertissements répétitifs (en-tête indécodable, en-tête reçu d'un pair
 hors de `PGPP_WEB_TRUSTED_PROXIES`, nom refusé dans l'en-tête du proxy)
@@ -326,15 +327,17 @@ ont été omis depuis quand (`3 similar warnings suppressed since
 l'arrêt de l'application. Ceux du pair non autorisé sont limités par
 adresse du pair : une ligne par pair et par minute, avec le compte omis de
 ce pair, si bien qu'une source bruyante ne masque pas les autres ; le pair
-est pris sous sa forme normalisée (une adresse IPv4 mappée `::ffff:a.b.c.d`
-comme `a.b.c.d`, une adresse IPv6 réduite à son /64, citée après
-l'adresse : `peer 2001:db8::1 (2001:db8::/64)`). Ceux du nom refusé sont
-limités par nom refusé (échappé) : le pair est presque toujours l'unique
-mandataire. Les 256 derniers pairs (ou noms) vus sont suivis ; au-delà, le
+est pris sous sa forme normalisée, citée après l'adresse quand elle en
+diffère : une adresse IPv4 mappée comme l'adresse IPv4
+(`peer ::ffff:10.0.0.9 (10.0.0.9)`), une adresse IPv6 réduite à son /64
+(`peer 2001:db8::1 (2001:db8::/64)`). Ceux du nom refusé sont limités par
+nom refusé (échappé, coupé à 128 caractères) et par motif : le pair est
+presque toujours l'unique mandataire. Les 256 derniers pairs (ou noms) vus sont suivis ; au-delà, le
 plus anciennement vu est oublié et son compte en attente s'ajoute à un
 compteur global, sans plus être attribué à ce pair. Toutes clés
 confondues, chaque avertissement écrit au plus 20 lignes par minute (et à
-l'arrêt, au plus 20 lignes de comptes en attente) : au-delà, les omissions
+l'arrêt, au plus 20 lignes de comptes en attente, pour les clés vues le
+plus récemment) : au-delà, les omissions
 s'ajoutent à ce même compteur global, écrit en une ligne (`… (all sources):
 57 similar warnings suppressed since …`) avec le premier avertissement d'une
 minute suivante ou à l'arrêt de l'application.
@@ -362,10 +365,33 @@ location / {
 
 Avec fail2ban, un filtre sur les lignes `basic authentication failed for user
 "<nom>" from <ip>` du journal d'uvicorn (ou sur les 401 du journal d'accès du proxy)
-complète le dispositif ; l'adresse du pair est le dernier champ de la ligne,
-qu'aucun nom (toujours échappé et entre guillemets) ne peut imiter. Un verrouillage par compte dans l'application a été
-écarté : derrière le proxy l'adresse vue est celle du proxy, et un compteur
-par utilisateur serait un déni de service trivial sur l'unique compte admin.
+complète le dispositif. L'adresse du pair est le dernier champ de la ligne :
+la `failregex` doit être ancrée en fin de ligne, gourmande, avec `<HOST>` en
+dernier champ :
+
+```ini
+failregex = basic authentication failed for user ".*" from <HOST>$
+```
+
+Un nom peut en effet contenir `" from 10.6.6.6` (échappé en
+`\" from 10.6.6.6`) : une expression non gourmande (`".*?"`) ou non ancrée
+capturerait cette fausse adresse au lieu de celle du pair.
+
+## Limites connues
+
+- **Pas de limitation de débit dans l'application** : les tentatives HTTP
+  basic sont freinées par bcrypt seul ; le reverse proxy limite le débit
+  (voir ci-dessus). Un verrouillage par compte a été écarté : derrière le
+  proxy l'adresse vue est celle du proxy, et un compteur par utilisateur
+  serait un déni de service trivial sur l'unique compte admin.
+- **Avertissements limités par clé** : un même client qui change de nom
+  refusé (ou d'adresse) à chaque requête obtient une ligne par nom, jusqu'au
+  plafond global de 20 lignes par minute et par avertissement, qui borne le
+  volume du journal ; au-delà de 256 clés suivies, les comptes des plus
+  anciennes ne sont plus attribués qu'au compteur global.
+- **Caractères Unicode récents** : un caractère ajouté par une version
+  d'Unicode plus récente que celle du Python qui exécute l'application est
+  refusé dans un nom tant que Python ne le connaît pas.
 
 ## Sécurité
 
@@ -576,7 +602,7 @@ par utilisateur serait un déni de service trivial sur l'unique compte admin.
 ```sh
 ruff check .
 ruff format --check .
-pytest                     # tests unitaires seuls : 193 (27 tests d'intégration ignorés)
+pytest                     # tests unitaires seuls (tests d'intégration ignorés)
 ```
 
 Les tests d'intégration ont besoin d'une base réelle avec l'extension
@@ -601,7 +627,7 @@ déjà y être installée, sinon `start` échoue avec un message qui le dit :
 git clone https://github.com/gliatti/pg_pass_policy /chemin/vers/pg_pass_policy
 export PG_PASS_POLICY_SRC=/chemin/vers/pg_pass_policy
 eval "$(scripts/test-instance.sh start /tmp/pgpp-web-test 54332)"
-pytest                     # 220 tests : unitaires + intégration
+pytest                     # tests unitaires et d'intégration
 scripts/test-instance.sh stop /tmp/pgpp-web-test
 ```
 

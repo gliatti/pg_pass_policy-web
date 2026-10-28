@@ -88,7 +88,7 @@ def test_invalid_basic_user_names_are_refused_at_startup(user, reason):
     with pytest.raises(ValueError) as refused:
         make_settings(basic_users=f"{user}:{_HASH}")
     message = str(refused.value)
-    assert f"PGPP_WEB_BASIC_USERS: user name {ascii(user)} refused" in message
+    assert f"PGPP_WEB_BASIC_USERS: user name {usernames.loggable(user)} refused" in message
     assert reason in message
 
 

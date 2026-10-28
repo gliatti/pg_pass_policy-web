@@ -8,7 +8,6 @@ import functools
 import hashlib
 import hmac
 import ipaddress
-import json
 import threading
 import time
 from collections import OrderedDict
@@ -22,7 +21,7 @@ from app.config import Settings, bcrypt_cost
 from app.hashpw import BCRYPT_MAX_BYTES
 from app.logfilter import get_logger
 from app.security import route_path
-from app.usernames import user_name_problem, valid_user_name
+from app.usernames import USER_MAX_LENGTH, loggable, user_name_problem, valid_user_name
 
 log = get_logger("auth")
 
@@ -81,24 +80,6 @@ def _decode_basic(authorization: str | None) -> tuple[bytes, bytes] | None:
     if not sep:
         return None
     return user_b, password_b
-
-
-# characters of a claimed user name kept in a log line
-LOGGED_NAME_MAX = 64
-
-
-def _loggable(user: str | None) -> str:
-    """A claimed user name safe for a log line, valid or not: cut to
-    LOGGED_NAME_MAX characters, then quoted and escaped by json.dumps()
-    (always double quotes, " and \\ escaped, every control or non-ASCII
-    character escaped as \\n or \\uXXXX, DEL too), followed by "..." when cut.  Pure
-    ASCII, at most 6 * 2 * LOGGED_NAME_MAX + 5 characters.  Always quoted,
-    so that no name can forge the " from <address>" that follows it in a
-    log line, nor slip an invisible or look-alike character into the log."""
-    if user is None:
-        return "<none>"
-    quoted = json.dumps(user[:LOGGED_NAME_MAX]).replace("\x7f", "\\u007f")
-    return quoted + ("..." if len(user) > LOGGED_NAME_MAX else "")
 
 
 def verify_basic(authorization: str | None, users: dict[str, bytes]) -> str | None:
@@ -283,7 +264,7 @@ class _Window:
         if not self.suppressed:
             self.since = since or _utcnow()
         elif since is not None:
-            self.since = min(self.since or since, since)
+            self.since = min(self.since, since)
         self.suppressed += count
 
     def take(self) -> tuple[int, datetime | None]:
@@ -386,10 +367,10 @@ class _ThrottledWarning:
 
     def flush(self) -> None:
         """Log the counts of warnings suppressed and not reported yet, if any:
-        one line for each of the first `max_lines` keys, the others added to
-        the global count."""
+        one line for each of the `max_lines` most recently seen keys, the
+        others added to the global count."""
         with self._lock:
-            pending = [(key, *window.take()) for key, window in self._windows.items()]
+            pending = [(key, *window.take()) for key, window in reversed(self._windows.items())]
             pending = [entry for entry in pending if entry[1]]
             for _, suppressed, since in pending[self.max_lines :]:
                 self._global.add(suppressed, since)
@@ -484,13 +465,13 @@ def user_from_proxy(request: Request, settings: Settings) -> str:
         ) from None
     problem = user_name_problem(user)
     if problem is not None:
-        logged = _loggable(user)
+        # keyed by the name, cut longer than in the line, and the reason
         warnings.refused_proxy_user.warning(
             "proxy header user name %s refused from peer %s: %s",
-            logged,
+            loggable(user),
             _peer(request),
             problem,
-            key=logged,
+            key=f"{loggable(user, USER_MAX_LENGTH)} ({problem})",
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -515,7 +496,7 @@ def require_user(request: Request) -> str:
                 # that the reverse proxy or fail2ban can throttle the source
                 log.warning(
                     "basic authentication failed for user %s from %s",
-                    _loggable(result.claimed),
+                    loggable(result.claimed),
                     _peer(request),
                 )
             raise _unauthorized(settings, "Not authenticated")

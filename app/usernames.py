@@ -6,6 +6,7 @@ import it."""
 
 from __future__ import annotations
 
+import json
 import unicodedata
 
 # longest accepted user name, in characters
@@ -112,3 +113,22 @@ def user_name_problem(name: str) -> str | None:
 
 def valid_user_name(name: str) -> bool:
     return user_name_problem(name) is None
+
+
+# characters of a claimed user name kept in a log line
+LOGGED_NAME_MAX = 64
+
+
+def loggable(user: str | None, limit: int = LOGGED_NAME_MAX) -> str:
+    """A claimed user name safe for a log line or an error message, valid or
+    not: cut to `limit` characters, followed by "..." when cut, then quoted
+    and escaped by json.dumps() (always double quotes, " and \\ escaped,
+    every control or non-ASCII character escaped as \\n or \\uXXXX, DEL
+    too).  Pure ASCII, at most 6 * 2 * limit + 5 characters, always ending
+    with a double quote, so that no name can forge the " from <address>"
+    that follows it in a log line, nor slip an invisible or look-alike
+    character into the log."""
+    if user is None:
+        return "<none>"
+    cut = user[:limit] + ("..." if len(user) > limit else "")
+    return json.dumps(cut).replace("\x7f", "\\u007f")

@@ -229,11 +229,11 @@ def test_plain_names_are_still_accepted(name):
     ["Émilie", "a​b", "bob️", "ａ", "‮alice", "x" * 200 + "\xe9"],
 )
 def test_a_refused_name_is_logged_in_ascii(name):
-    logged = auth._loggable(name)
+    logged = usernames.loggable(name)
     assert logged.isascii()
-    if len(name) > auth.LOGGED_NAME_MAX:
-        # cut before escaping, then marked as cut
-        assert logged == json.dumps(name[: auth.LOGGED_NAME_MAX]) + "..."
+    if len(name) > usernames.LOGGED_NAME_MAX:
+        # cut and marked as cut inside the quotes, then escaped
+        assert logged == json.dumps(name[: usernames.LOGGED_NAME_MAX] + "...")
     else:
         assert logged == json.dumps(name)
 
@@ -247,6 +247,6 @@ def test_a_refused_basic_user_names_the_rule():
         make_settings(basic_users=f"bob​:{digest}")
     message = str(refused.value)
     assert message.isascii()
-    assert "user name 'bob\\u200b' refused" in message
+    assert 'user name "bob\\u200b" refused' in message
     assert "character U+200B not allowed (category Cf)" in message
     assert usernames.USER_NAME_RULE in message
