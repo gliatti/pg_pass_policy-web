@@ -430,7 +430,8 @@ class AuthWarnings:
 
 def _name_digest(settings: Settings, user: str) -> str:
     """A short keyed digest of a refused user name (128 bits, hex); changes
-    with PGPP_WEB_SECRET."""
+    with PGPP_WEB_SECRET.  `user` comes from a strict decoder, so it holds
+    no lone surrogate."""
     return _keyed_digest(settings, b"pgpp-web refused name", user.encode("utf-8"))[:32]
 
 
@@ -482,16 +483,16 @@ def user_from_proxy(request: Request, settings: Settings) -> str:
         ) from None
     problem = user_name_problem(user)
     if problem is not None:
-        # keyed by the displayed name and a keyed digest of the full name
-        # (HMAC with PGPP_WEB_SECRET, so that the log holds no checkable hash
-        # of the cut tail): bounded, and two names cut alike keep their own
-        # window; the reason follows from the name, so it stays out of the
-        # key (the line written at shutdown cites the key, not the reason)
-        subject = f"{loggable(user, USER_MAX_LENGTH)} [{_name_digest(settings, user)}]"
+        # keyed by the displayed name, a keyed digest of the full name (HMAC
+        # with PGPP_WEB_SECRET, so that the log holds no checkable hash of
+        # the cut tail) and the reason: bounded, two names cut alike keep
+        # their own window, and the line written at shutdown, which cites
+        # the key, says why the name was refused even when no live line
+        # was written (global cap)
+        subject = f"{loggable(user, USER_MAX_LENGTH)} [{_name_digest(settings, user)}] ({problem})"
         warnings.refused_proxy_user.warning(
-            "proxy header user name refused from peer %s: %s: %s",
+            "proxy header user name refused from peer %s: %s",
             _peer(request),
-            problem,
             subject,
             key=subject,
         )
