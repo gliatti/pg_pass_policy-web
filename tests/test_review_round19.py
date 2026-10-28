@@ -268,8 +268,10 @@ def test_refused_proxy_names_are_keyed_by_name_and_digest(monkeypatch, caplog):
     # one proxy, two names: two lines
     assert len(caplog.records) == 2
     assert list(warnings.refused_proxy_user._windows) == [
-        f'"bob\\ufe0f" [{auth._name_digest(settings, "bob" + chr(0xFE0F))}]',
-        f'"eve\\u200b" [{auth._name_digest(settings, "eve" + chr(0x200B))}]',
+        "character U+FE0F not allowed (invisible):"
+        f' "bob\\ufe0f" [{auth._name_digest(settings, "bob" + chr(0xFE0F))}]',
+        "character U+200B not allowed (category Cf):"
+        f' "eve\\u200b" [{auth._name_digest(settings, "eve" + chr(0x200B))}]',
     ]
 
 

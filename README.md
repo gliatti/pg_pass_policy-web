@@ -343,17 +343,19 @@ est pris sous sa forme normalisée, citée après l'adresse quand elle en
 diffère : une adresse IPv4 mappée comme l'adresse IPv4
 (`peer ::ffff:10.0.0.9 (10.0.0.9)`), une adresse IPv6 réduite à son /64
 (`peer 2001:db8::1 (2001:db8::/64)`). Ceux du nom refusé sont limités par
-nom refusé : la clé est le nom échappé et coupé à 128 caractères, suivi
-d'une empreinte du nom complet (HMAC-SHA-256 avec `PGPP_WEB_SECRET`, 128
-bits : le journal ne contient aucun condensé vérifiable de la partie
-coupée) : `"bob\u200b" [<empreinte>]`. L'empreinte suffit à garder une
-fenêtre propre à chacun de deux noms coupés à l'identique. La ligne écrite
-à l'arrêt cite le motif avant la clé, et dit donc pourquoi le nom a été
-refusé même quand aucune ligne n'a été écrite pour lui (plafond global).
-L'empreinte change avec `PGPP_WEB_SECRET` : après un changement de secret
-(qui demande un redémarrage), un même nom apparaît sous deux empreintes,
-et les lignes d'avant et d'après ne se relient plus par elle. Le pair ne fait
-pas partie de la clé : c'est presque toujours l'unique mandataire. Les 256
+nom refusé : la clé est le motif, puis le nom échappé et coupé à 128
+caractères, puis une empreinte du nom complet (HMAC-SHA-256 avec
+`PGPP_WEB_SECRET`, 128 bits : le journal ne contient aucun condensé
+vérifiable de la partie coupée) : `<motif>: "bob\u200b" [<empreinte>]`.
+L'empreinte suffit à garder une fenêtre propre à chacun de deux noms coupés
+à l'identique. La ligne écrite à l'arrêt cite cette clé, et dit donc
+pourquoi le nom a été refusé même si la ligne qui l'a d'abord signalé a
+quitté le journal ; le compte y vient en dernier, et un relais qui coupe
+une ligne trop longue peut le perdre. L'empreinte change avec
+`PGPP_WEB_SECRET` : après un changement de secret (qui demande un
+redémarrage), un même nom apparaît sous deux empreintes, et les lignes
+d'avant et d'après ne se relient plus par elle. Le pair ne fait pas
+partie de la clé : c'est presque toujours l'unique mandataire. Les 256
 derniers pairs (ou clés) vus sont suivis ; au-delà, le plus anciennement
 vu est oublié et son compte en attente s'ajoute à un compteur global, sans
 plus être attribué à ce pair.
