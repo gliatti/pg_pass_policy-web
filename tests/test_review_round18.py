@@ -99,16 +99,16 @@ def test_the_peers_tracked_are_bounded_least_recently_seen_dropped(monkeypatch, 
     ]
 
 
-def test_every_warning_tracks_256_keys(monkeypatch):
+def test_every_warning_tracks_256_keys(monkeypatch, caplog):
+    caplog.set_level(logging.CRITICAL)
     _clock(monkeypatch)
     warnings = auth.AuthWarnings()
     assert auth.TRACKED_KEYS == 256
-    assert [t.label for t in warnings.all()] == [
-        "proxy header not decodable",
-        "proxy header refused from untrusted peer",
-        "proxy header user name refused",
-    ]
+    # all() holds every _ThrottledWarning attribute, each once
+    attributes = [v for v in vars(warnings).values() if isinstance(v, auth._ThrottledWarning)]
+    assert list(warnings.all()) == attributes and len(set(map(id, attributes))) == 3
     for throttled in warnings.all():
+        assert throttled.max_keys == auth.TRACKED_KEYS, throttled.label
         for i in range(300):
             throttled.warning("w", key=f"k{i}")
         assert len(throttled._windows) == auth.TRACKED_KEYS, throttled.label

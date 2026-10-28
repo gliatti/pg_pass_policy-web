@@ -421,25 +421,32 @@ class AuthWarnings:
     process (tests, a reload) never share nor flush each other's counts."""
 
     def __init__(self) -> None:
+        self._all: list[_ThrottledWarning] = []
         # a proxy header that cannot be decoded: a misconfigured reverse
         # proxy or PGPP_WEB_PROXY_HEADER_ENCODING, worth a trace (never the
         # header itself)
-        self.undecodable_proxy_header = _ThrottledWarning("proxy header not decodable")
+        self.undecodable_proxy_header = self._register("proxy header not decodable")
         # a proxy header sent by a peer outside PGPP_WEB_TRUSTED_PROXIES:
         # once per minute and per peer at most, a scan or a misrouted client
         # would send one per request; per peer, so that one noisy address
         # does not hide the others
-        self.untrusted_proxy_peer = _ThrottledWarning("proxy header refused from untrusted peer")
+        self.untrusted_proxy_peer = self._register("proxy header refused from untrusted peer")
         # a proxy header holding a name refused by app.usernames (NFKC,
         # invisible character...): one window per refused name, keyed as
         # described in user_from_proxy() (the peer is the trusted proxy,
         # nearly always one)
-        self.refused_proxy_user = _ThrottledWarning("proxy header user name refused")
+        self.refused_proxy_user = self._register("proxy header user name refused")
+
+    def _register(self, label: str) -> _ThrottledWarning:
+        """The only way to create a warning here: registered, so that flush()
+        and reset cannot miss it."""
+        throttled = _ThrottledWarning(label)
+        self._all.append(throttled)
+        return throttled
 
     def all(self) -> tuple[_ThrottledWarning, ...]:
-        """Every throttled warning of this object, in definition order (none
-        can be forgotten by flush())."""
-        return tuple(v for v in vars(self).values() if isinstance(v, _ThrottledWarning))
+        """Every registered throttled warning, in creation order."""
+        return tuple(self._all)
 
     def flush(self) -> None:
         """At shutdown: report the warnings suppressed since the last one logged."""
