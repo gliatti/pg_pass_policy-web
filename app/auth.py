@@ -263,8 +263,9 @@ class _Window:
             return
         if not self.suppressed:
             self.since = since or _utcnow()
-        elif since is not None and (self.since is None or since < self.since):
-            self.since = since
+        elif since is not None:
+            # since is set as soon as suppressed > 0
+            self.since = min(self.since, since)
         self.suppressed += count
 
     def take(self) -> tuple[int, datetime | None]:
@@ -367,8 +368,9 @@ class _ThrottledWarning:
 
     def flush(self) -> None:
         """Log the counts of warnings suppressed and not reported yet, if any:
-        one line for each of the `max_lines` most recently seen keys, oldest
-        first, the others added to the global count."""
+        one line for each of the `max_lines` most recently seen keys, in the
+        order of their last occurrence, the global line last (the others are
+        added to it)."""
         with self._lock:
             pending = [(key, *window.take()) for key, window in reversed(self._windows.items())]
             pending = [entry for entry in pending if entry[1]]
@@ -465,15 +467,15 @@ def user_from_proxy(request: Request, settings: Settings) -> str:
         ) from None
     problem = user_name_problem(user)
     if problem is not None:
-        # keyed by the name and the reason; the name cut at USER_MAX_LENGTH,
-        # in the line as in the key: what tells two keys apart is in the line
+        # keyed by the name cut at USER_MAX_LENGTH, as in the line; the name
+        # last, so that a relay cutting a long line only cuts the name
         name = loggable(user, USER_MAX_LENGTH)
         warnings.refused_proxy_user.warning(
-            "proxy header user name %s refused from peer %s: %s",
-            name,
+            "proxy header user name refused from peer %s: %s: %s",
             _peer(request),
             problem,
-            key=f"{name} ({problem})",
+            name,
+            key=name,
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

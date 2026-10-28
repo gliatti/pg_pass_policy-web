@@ -202,10 +202,12 @@ accepté par une version précédente peut désormais recevoir un 401, en
 particulier une forme de compatibilité (refusée par NFKC : pleine chasse,
 ligature, exposant…) ou un caractère invisible (sélecteur de variante,
 remplissage hangûl…). Chaque refus est journalisé en `WARNING`, au plus une
-ligne par minute, par nom refusé et par motif, avec le nom échappé et le motif :
+ligne par minute et par nom refusé, avec le pair, le motif puis le nom
+échappé (en dernier : un relais qui coupe une ligne trop longue n'en perd
+que la fin du nom) :
 
 ```text
-proxy header user name "bob\ufe0f" refused from peer 10.0.0.9: character U+FE0F not allowed (invisible)
+proxy header user name refused from peer 10.0.0.9: character U+FE0F not allowed (invisible): "bob\ufe0f"
 ```
 
 Le nom de l'utilisateur web est enregistré dans `pass_policy.audit_log`
@@ -317,8 +319,12 @@ guillemets doubles (`"bob\u200b"`, échappement JSON : `"` et `\` échappés,
 tout caractère de contrôle ou non ASCII en `\uXXXX`), qu'il soit valide ou
 non, jamais tel quel ; au-delà de 64 caractères (128 pour un nom refusé
 dans l'en-tête du proxy ou dans `PGPP_WEB_BASIC_USERS`), il est coupé et
-`...` est ajouté avant le guillemet fermant (`"aaaa..."`) : la ligne finit
-toujours par `" from <adresse>`.
+`...` est ajouté avant le guillemet fermant (`"aaaa..."`). La ligne d'échec
+HTTP basic finit toujours par `" from <adresse>` ; celle du nom refusé dans
+l'en-tête du proxy, par le nom entre guillemets (`… from peer <adresse>:
+<motif>: "<nom>"`) ; l'erreur de démarrage sur `PGPP_WEB_BASIC_USERS` cite
+le nom, puis le motif et la règle (`user name "<nom>" refused: <motif>; a
+user name must be …`).
 
 Les avertissements répétitifs (en-tête indécodable, en-tête reçu d'un pair
 hors de `PGPP_WEB_TRUSTED_PROXIES`, nom refusé dans l'en-tête du proxy)
@@ -332,16 +338,15 @@ est pris sous sa forme normalisée, citée après l'adresse quand elle en
 diffère : une adresse IPv4 mappée comme l'adresse IPv4
 (`peer ::ffff:10.0.0.9 (10.0.0.9)`), une adresse IPv6 réduite à son /64
 (`peer 2001:db8::1 (2001:db8::/64)`). Ceux du nom refusé sont limités par
-clé « nom + motif » : le nom refusé, échappé et coupé à 128 caractères comme
-dans la ligne, suivi du motif du refus (`"bob\u200b" (character U+200B not
-allowed (category Cf))`) ; le pair n'en fait pas partie : c'est presque
-toujours l'unique mandataire. Les 256 derniers pairs (ou clés) vus sont
+nom refusé, échappé et coupé à 128 caractères comme dans la ligne
+(`"bob\u200b"`) : le motif découle du nom ; le pair n'en fait pas partie :
+c'est presque toujours l'unique mandataire. Les 256 derniers pairs (ou clés) vus sont
 suivis ; au-delà, le plus anciennement vu est oublié et son compte en
 attente s'ajoute à un compteur global, sans plus être attribué à ce pair.
 Toutes clés confondues, chaque avertissement écrit au plus 20 lignes par
 minute (et à l'arrêt, au plus 20 lignes de comptes en attente, pour les
-clés vues le plus récemment, écrites de la plus ancienne à la plus
-récente) : au-delà, les omissions
+clés vues le plus récemment, dans l'ordre de leur dernière occurrence, la
+ligne globale en dernier) : au-delà, les omissions
 s'ajoutent à ce même compteur global, écrit en une ligne (`… (all sources):
 57 similar warnings suppressed since …`) avec le premier avertissement d'une
 minute suivante ou à l'arrêt de l'application.
@@ -384,7 +389,9 @@ capturerait cette fausse adresse au lieu de celle du pair. Cette
 (celui d'uvicorn par défaut) : un format qui ajoute un champ après le
 message demande d'adapter l'ancrage. `<HOST>` de fail2ban accepte la forme
 `::ffff:a.b.c.d` d'une adresse IPv4 mappée ; la valeur `unix` (pair sur une
-socket Unix) n'est pas une adresse et n'est jamais bannie.
+socket Unix) n'est pas une adresse : fail2ban ne peut pas la bannir et,
+avec `usedns = yes`, tente de la résoudre comme un nom d'hôte ; garder
+`usedns = no` (ou `warn`).
 
 ## Limites connues
 

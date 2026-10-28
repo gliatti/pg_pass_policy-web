@@ -186,13 +186,13 @@ def test_a_refused_proxy_name_is_logged_with_its_reason(monkeypatch, caplog):
             auth.user_from_proxy(_proxy_request("bob️".encode(), warnings), settings)
         assert refused.value.status_code == 401
     assert [r.getMessage() for r in caplog.records] == [
-        'proxy header user name "bob\\ufe0f" refused from peer 127.0.0.1:'
-        " character U+FE0F not allowed (invisible)"
+        "proxy header user name refused from peer 127.0.0.1:"
+        ' character U+FE0F not allowed (invisible): "bob\\ufe0f"'
     ]
     caplog.clear()
     warnings.flush()
     assert [r.getMessage() for r in caplog.records] == [
-        'proxy header user name refused "bob\\ufe0f" (character U+FE0F not allowed (invisible)):'
+        'proxy header user name refused "bob\\ufe0f":'
         " 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00"
     ]
     assert warnings.refused_proxy_user in warnings.all()
@@ -239,7 +239,7 @@ def test_flush_writes_at_most_the_cap_per_key(monkeypatch, caplog):
     assert [r.getMessage() for r in caplog.records] == [
         *(
             f"probe {k}: 1 similar warnings suppressed since 2026-05-06T07:08:09+00:00"
-            # the most recently seen keys, oldest first
+            # the most recently seen keys, in the order of their last occurrence
             for k in "cde"
         ),
         "probe (all sources): 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00",
@@ -266,6 +266,6 @@ def test_refused_proxy_names_are_keyed_by_name(monkeypatch, caplog):
     # one proxy, two names: two lines
     assert len(caplog.records) == 2
     assert list(warnings.refused_proxy_user._windows) == [
-        '"bob\\ufe0f" (character U+FE0F not allowed (invisible))',
-        '"eve\\u200b" (character U+200B not allowed (category Cf))',
+        '"bob\\ufe0f"',
+        '"eve\\u200b"',
     ]
