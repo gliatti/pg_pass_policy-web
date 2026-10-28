@@ -125,9 +125,9 @@ def loggable(user: str | None, limit: int = LOGGED_NAME_MAX) -> str:
     and escaped by json.dumps() (always double quotes, " and \\ escaped,
     every control or non-ASCII character escaped as \\n or \\uXXXX, DEL
     too).  Pure ASCII, at most 6 * 2 * limit + 5 characters, always ending
-    with a double quote, so that no name can forge the " from <address>"
-    that follows it in a log line, nor slip an invisible or look-alike
-    character into the log."""
+    with a double quote, so that no name can forge what follows it in a
+    log line (" from <address>", " [<digest>]"), nor slip an invisible or
+    look-alike character into the log."""
     if user is None:
         return "<none>"
     cut = user[:limit] + ("..." if len(user) > limit else "")

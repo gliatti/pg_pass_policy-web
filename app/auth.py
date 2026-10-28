@@ -111,6 +111,12 @@ def _verify_decoded(user_b: bytes, password_b: bytes, users: dict[str, bytes]) -
     return user
 
 
+def _keyed_digest(settings: Settings, label: bytes, message: bytes) -> str:
+    """HMAC-SHA256 (hex) of `label` NUL `message`, keyed with PGPP_WEB_SECRET."""
+    key = settings.secret.get_secret_value().encode()
+    return hmac.new(key, label + b"\x00" + message, hashlib.sha256).hexdigest()
+
+
 def _basic_fingerprint(settings: Settings, authorization: str, digest: bytes) -> str:
     """HMAC-SHA256, keyed with PGPP_WEB_SECRET, of the Authorization header
     and of the bcrypt hash it was checked against.
@@ -126,9 +132,9 @@ def _basic_fingerprint(settings: Settings, authorization: str, digest: bytes) ->
     the hash in PGPP_WEB_BASIC_USERS (password changed, user removed: the
     user has no hash any more): the cache is then ignored and bcrypt runs
     again."""
-    key = settings.secret.get_secret_value().encode()
-    message = b"pgpp-web basic\x00" + authorization.encode("latin-1", "replace") + b"\x00" + digest
-    return hmac.new(key, message, hashlib.sha256).hexdigest()
+    return _keyed_digest(
+        settings, b"pgpp-web basic", authorization.encode("latin-1", "replace") + b"\x00" + digest
+    )
 
 
 def _cached_basic_user(
@@ -422,10 +428,10 @@ class AuthWarnings:
 
 
 def _name_digest(settings: Settings, user: str) -> str:
-    """A short keyed digest of a refused user name (128 bits, hex)."""
-    key = settings.secret.get_secret_value().encode()
-    message = b"pgpp-web refused name\x00" + user.encode("utf-8")
-    return hmac.new(key, message, hashlib.sha256).hexdigest()[:32]
+    """A short keyed digest of a refused user name (128 bits, hex); changes
+    with PGPP_WEB_SECRET."""
+    message = user.encode("utf-8", "surrogatepass")
+    return _keyed_digest(settings, b"pgpp-web refused name", message)[:32]
 
 
 def user_from_proxy(request: Request, settings: Settings) -> str:
@@ -476,17 +482,15 @@ def user_from_proxy(request: Request, settings: Settings) -> str:
         ) from None
     problem = user_name_problem(user)
     if problem is not None:
-        # keyed by the displayed name and a keyed digest of the full name
-        # (HMAC with PGPP_WEB_SECRET, so that the log holds no checkable
-        # hash of the cut tail): bounded, and two names cut alike keep
-        # their own window; the subject (name and digest) after the peer
-        # and the reason, so that a relay cutting a long line keeps them,
-        # and the same subject in the line written at shutdown
-        subject = f"{loggable(user, USER_MAX_LENGTH)} [{_name_digest(settings, user)}]"
+        # keyed by the reason, the displayed name and a keyed digest of the
+        # full name (HMAC with PGPP_WEB_SECRET, so that the log holds no
+        # checkable hash of the cut tail): bounded, and two names cut alike
+        # keep their own window; the peer first, then this subject, also
+        # cited by the line written at shutdown
+        subject = f"{problem}: {loggable(user, USER_MAX_LENGTH)} [{_name_digest(settings, user)}]"
         warnings.refused_proxy_user.warning(
-            "proxy header user name refused from peer %s: %s: %s",
+            "proxy header user name refused from peer %s: %s",
             _peer(request),
-            problem,
             subject,
             key=subject,
         )

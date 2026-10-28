@@ -193,8 +193,8 @@ def test_a_refused_proxy_name_is_logged_with_its_reason(monkeypatch, caplog):
     caplog.clear()
     warnings.flush()
     assert [r.getMessage() for r in caplog.records] == [
-        'proxy header user name refused "bob\\ufe0f"'
-        f" [{auth._name_digest(settings, 'bob' + chr(0xFE0F))}]:"
+        "proxy header user name refused character U+FE0F not allowed (invisible):"
+        f' "bob\\ufe0f" [{auth._name_digest(settings, "bob" + chr(0xFE0F))}]:'
         " 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00"
     ]
     assert warnings.refused_proxy_user in warnings.all()
@@ -268,9 +268,22 @@ def test_refused_proxy_names_are_keyed_by_name_and_digest(monkeypatch, caplog):
     # one proxy, two names: two lines
     assert len(caplog.records) == 2
     assert list(warnings.refused_proxy_user._windows) == [
-        f'"bob\\ufe0f" [{auth._name_digest(settings, "bob" + chr(0xFE0F))}]',
-        f'"eve\\u200b" [{auth._name_digest(settings, "eve" + chr(0x200B))}]',
+        "character U+FE0F not allowed (invisible):"
+        f' "bob\\ufe0f" [{auth._name_digest(settings, "bob" + chr(0xFE0F))}]',
+        "character U+200B not allowed (category Cf):"
+        f' "eve\\u200b" [{auth._name_digest(settings, "eve" + chr(0x200B))}]',
     ]
+
+
+def test_the_refused_name_digest_is_keyed_with_the_secret():
+    import hashlib
+
+    name = "bob" + chr(0xFE0F)
+    one = auth._name_digest(make_settings(secret="s" * 32), name)
+    two = auth._name_digest(make_settings(secret="t" * 32), name)
+    assert len(one) == 32 and int(one, 16) >= 0
+    assert one != two
+    assert one != hashlib.sha256(name.encode()).hexdigest()[:32]
 
 
 def test_long_refused_names_cut_alike_keep_their_own_window(monkeypatch, caplog):
