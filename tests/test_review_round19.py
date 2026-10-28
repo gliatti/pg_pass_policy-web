@@ -6,6 +6,7 @@ already refused by NFKC."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import unicodedata
@@ -192,7 +193,8 @@ def test_a_refused_proxy_name_is_logged_with_its_reason(monkeypatch, caplog):
     caplog.clear()
     warnings.flush()
     assert [r.getMessage() for r in caplog.records] == [
-        'proxy header user name refused "bob\\ufe0f":'
+        'proxy header user name refused "bob\\ufe0f"'
+        f" (character U+FE0F not allowed (invisible)) [{BOB_DIGEST}]:"
         " 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00"
     ]
     assert warnings.refused_proxy_user in warnings.all()
@@ -255,6 +257,14 @@ def test_the_earliest_since_is_kept():
     assert window.take() == (2, earlier)
 
 
+def _digest(name: str) -> str:
+    return hashlib.sha256(name.encode()).hexdigest()[:12]
+
+
+BOB_DIGEST = _digest("bob\ufe0f")
+EVE_DIGEST = _digest("eve\u200b")
+
+
 def test_refused_proxy_names_are_keyed_by_name(monkeypatch, caplog):
     caplog.set_level(logging.WARNING)
     _clock(monkeypatch)
@@ -266,6 +276,20 @@ def test_refused_proxy_names_are_keyed_by_name(monkeypatch, caplog):
     # one proxy, two names: two lines
     assert len(caplog.records) == 2
     assert list(warnings.refused_proxy_user._windows) == [
-        '"bob\\ufe0f"',
-        '"eve\\u200b"',
+        f'"bob\\ufe0f" (character U+FE0F not allowed (invisible)) [{BOB_DIGEST}]',
+        f'"eve\\u200b" (character U+200B not allowed (category Cf)) [{EVE_DIGEST}]',
     ]
+
+
+def test_long_refused_names_cut_alike_keep_their_own_window(monkeypatch, caplog):
+    caplog.set_level(logging.WARNING)
+    _clock(monkeypatch)
+    warnings = auth.AuthWarnings()
+    settings = make_settings(auth="proxy", basic_users="", proxy_header="X-Remote-User")
+    prefix = "a" * usernames.USER_MAX_LENGTH
+    for name in (prefix + "x", prefix + "y"):
+        with pytest.raises(HTTPException):
+            auth.user_from_proxy(_proxy_request(name.encode(), warnings), settings)
+    # same displayed name, same reason: two windows, two lines
+    assert len(caplog.records) == 2
+    assert len(warnings.refused_proxy_user._windows) == 2
