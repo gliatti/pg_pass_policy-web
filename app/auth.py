@@ -437,7 +437,9 @@ class AuthWarnings:
         self.refused_proxy_user = _ThrottledWarning("proxy header user name refused")
 
     def all(self) -> tuple[_ThrottledWarning, ...]:
-        return (self.undecodable_proxy_header, self.untrusted_proxy_peer, self.refused_proxy_user)
+        """Every throttled warning of this object, in definition order (none
+        can be forgotten by flush())."""
+        return tuple(v for v in vars(self).values() if isinstance(v, _ThrottledWarning))
 
     def flush(self) -> None:
         """At shutdown: report the warnings suppressed since the last one logged."""

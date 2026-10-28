@@ -103,10 +103,15 @@ def test_every_warning_tracks_256_keys(monkeypatch):
     _clock(monkeypatch)
     warnings = auth.AuthWarnings()
     assert auth.TRACKED_KEYS == 256
-    assert all(throttled.max_keys == auth.TRACKED_KEYS for throttled in warnings.all())
-    for i in range(300):
-        warnings.untrusted_proxy_peer.warning("w", key=f"10.0.{i // 256}.{i % 256}")
-    assert len(warnings.untrusted_proxy_peer._windows) == 256
+    assert [t.label for t in warnings.all()] == [
+        "proxy header not decodable",
+        "proxy header refused from untrusted peer",
+        "proxy header user name refused",
+    ]
+    for throttled in warnings.all():
+        for i in range(300):
+            throttled.warning("w", key=f"k{i}")
+        assert len(throttled._windows) == auth.TRACKED_KEYS, throttled.label
 
 
 # --- 8: the throttled warnings belong to the application ---------------------------------
