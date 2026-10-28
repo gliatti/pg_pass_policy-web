@@ -322,8 +322,9 @@ non, jamais tel quel ; au-delà de 64 caractères (128 pour un nom refusé
 dans l'en-tête du proxy ou dans `PGPP_WEB_BASIC_USERS`), il est coupé et
 `...` est ajouté avant le guillemet fermant (`"aaaa..."`). La ligne d'échec
 HTTP basic finit toujours par `" from <adresse>` ; celle du nom refusé dans
-l'en-tête du proxy cite le pair, le motif puis la clé (`… from peer
-<adresse>: <motif>: "<nom>" [<empreinte>]`), suivie, quand des lignes ont été omises
+l'en-tête du proxy cite le pair puis la clé, faite du motif, du nom et de
+l'empreinte (`… from peer <adresse>: <motif>: "<nom>" [<empreinte>]`),
+suivie, quand des lignes ont été omises
 avant elle, du compte omis (` (3 similar warnings suppressed since …)`) ;
 la ligne écrite à l'arrêt pour ce compte cite la clé puis le compte
 (`proxy header user name refused <motif>: "<nom>" [<empreinte>]: 3
