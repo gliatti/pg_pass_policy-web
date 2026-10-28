@@ -439,7 +439,7 @@ class AuthWarnings:
 
     def _register(self, label: str) -> _ThrottledWarning:
         """The only way to create a warning here: registered, so that flush()
-        and reset cannot miss it."""
+        cannot miss it."""
         throttled = _ThrottledWarning(label)
         self._all.append(throttled)
         return throttled

@@ -106,7 +106,14 @@ def test_every_warning_tracks_256_keys(monkeypatch, caplog):
     assert auth.TRACKED_KEYS == 256
     # all() holds every _ThrottledWarning attribute, each once
     attributes = [v for v in vars(warnings).values() if isinstance(v, auth._ThrottledWarning)]
-    assert list(warnings.all()) == attributes and len(set(map(id, attributes))) == 3
+    assert list(warnings.all()) == attributes
+    assert len(set(map(id, attributes))) == len(attributes)
+    # the labels start every count line: log filters may rely on them
+    assert [t.label for t in warnings.all()] == [
+        "proxy header not decodable",
+        "proxy header refused from untrusted peer",
+        "proxy header user name refused",
+    ]
     for throttled in warnings.all():
         assert throttled.max_keys == auth.TRACKED_KEYS, throttled.label
         for i in range(300):
