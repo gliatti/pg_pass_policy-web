@@ -108,8 +108,12 @@ def test_every_warning_tracks_256_keys(monkeypatch, caplog):
     attributes = [v for v in vars(warnings).values() if isinstance(v, auth._ThrottledWarning)]
     assert list(warnings.all()) == attributes
     assert len(set(map(id, attributes))) == len(attributes)
-    # the labels, which COUNT_LINE puts first (round 19 pins that format)
-    assert {t.label for t in warnings.all()} >= {
+    # the labels, which COUNT_LINE puts first (format pinned by
+    # test_count_lines_share_one_prefix): known ones kept, all distinct and
+    # non-empty
+    labels = [t.label for t in warnings.all()]
+    assert len(set(labels)) == len(labels) and all(labels)
+    assert set(labels) >= {
         "proxy header not decodable",
         "proxy header refused from untrusted peer",
         "proxy header user name refused",
