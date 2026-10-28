@@ -324,8 +324,8 @@ HTTP basic finit toujours par `" from <adresse>` ; celle du nom refusé dans
 l'en-tête du proxy porte le nom après le motif (`… from peer <adresse>:
 <motif>: "<nom>"`), suivi, quand des lignes ont été omises avant elle, du
 compte omis (` (3 similar warnings suppressed since …)`) ; la ligne écrite
-à l'arrêt pour ce compte cite la clé puis le compte (`proxy header user
-name refused "<nom>" (<motif>): 3 similar warnings suppressed since …`) ;
+à l'arrêt pour ce compte cite le nom puis le compte (`proxy header user
+name refused "<nom>": 3 similar warnings suppressed since …`) ;
 l'erreur de démarrage sur `PGPP_WEB_BASIC_USERS` cite
 le nom, puis le motif et la règle (`user name "<nom>" refused: <motif>; a
 user name must be …`).
@@ -342,10 +342,9 @@ est pris sous sa forme normalisée, citée après l'adresse quand elle en
 diffère : une adresse IPv4 mappée comme l'adresse IPv4
 (`peer ::ffff:10.0.0.9 (10.0.0.9)`), une adresse IPv6 réduite à son /64
 (`peer 2001:db8::1 (2001:db8::/64)`). Ceux du nom refusé sont limités par
-nom refusé et par motif : la clé est le nom échappé et coupé à 128
-caractères comme dans la ligne, suivi du motif (`"bob\u200b" (character
-U+200B not allowed (category Cf))`) ; le pair n'en fait pas partie : c'est
-presque toujours l'unique mandataire. Les 256 derniers pairs (ou clés) vus sont
+nom refusé : la clé est le nom échappé et coupé à 128 caractères comme
+dans la ligne (`"bob\u200b"`), qui détermine le motif ; le pair n'en fait
+pas partie : c'est presque toujours l'unique mandataire. Les 256 derniers pairs (ou clés) vus sont
 suivis ; au-delà, le plus anciennement vu est oublié et son compte en
 attente s'ajoute à un compteur global, sans plus être attribué à ce pair.
 Toutes clés confondues, chaque avertissement écrit au plus 20 lignes par
@@ -396,10 +395,16 @@ message demande d'adapter l'ancrage. `<HOST>` de fail2ban accepte la forme
 `::ffff:a.b.c.d` d'une adresse IPv4 mappée ; la valeur `unix` (pair sur une
 socket Unix) n'est pas une adresse : fail2ban ne peut pas la bannir et,
 avec `usedns = yes` comme avec `warn`, tente de la résoudre comme un nom
-d'hôte ; garder `usedns = no` (ou `raw`).
+d'hôte, et avec `raw` la transmet telle quelle à l'action de bannissement ;
+garder `usedns = no`.
 
 ## Limites connues
 
+- Deux noms refusés dans l'en-tête du proxy, plus longs que 128 caractères
+  et identiques sur leurs 128 premiers, partagent la même fenêtre de
+  limitation : le second n'apparaît que dans le compte omis du premier.
+  La coupe garde les lignes bornées ; distinguer ces noms demanderait de
+  garder des clés de taille non bornée.
 - **Pas de limitation de débit dans l'application** : les tentatives HTTP
   basic sont freinées par bcrypt seul ; le reverse proxy limite le débit
   (voir ci-dessus). Un verrouillage par compte a été écarté : derrière le

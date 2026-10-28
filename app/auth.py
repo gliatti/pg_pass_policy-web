@@ -263,8 +263,9 @@ class _Window:
             return
         if not self.suppressed:
             self.since = since or _utcnow()
-        elif since is not None and (self.since is None or since < self.since):
-            self.since = since
+        elif since is not None:
+            # since is set as soon as suppressed > 0
+            self.since = min(self.since, since)
         self.suppressed += count
 
     def take(self) -> tuple[int, datetime | None]:
@@ -466,17 +467,18 @@ def user_from_proxy(request: Request, settings: Settings) -> str:
         ) from None
     problem = user_name_problem(user)
     if problem is not None:
-        # keyed by the name (cut at USER_MAX_LENGTH, as in the line) and the
-        # reason, so that two names cut alike never share a window whatever
-        # the cut length or the order of the checks; the name after the
-        # reason, so that a relay cutting a long line cuts the name first
+        # keyed by the name cut at USER_MAX_LENGTH, as in the line: the name
+        # fixes the reason (two names longer than USER_MAX_LENGTH that share
+        # their first USER_MAX_LENGTH characters share a window: accepted,
+        # README "Limites connues"); the name after the peer and the reason,
+        # so that a relay cutting a long line keeps them
         name = loggable(user, USER_MAX_LENGTH)
         warnings.refused_proxy_user.warning(
             "proxy header user name refused from peer %s: %s: %s",
             _peer(request),
             problem,
             name,
-            key=f"{name} ({problem})",
+            key=name,
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
