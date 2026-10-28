@@ -258,7 +258,7 @@ def test_the_earliest_since_is_kept():
     assert window.take() == (2, earlier)
 
 
-def test_refused_proxy_names_are_keyed_by_reason_name_and_digest(monkeypatch, caplog):
+def test_refused_proxy_names_have_one_window_per_name(monkeypatch, caplog):
     caplog.set_level(logging.WARNING)
     _clock(monkeypatch)
     warnings = auth.AuthWarnings()

@@ -203,9 +203,7 @@ particulier une forme de compatibilité (refusée par NFKC : pleine chasse,
 ligature, exposant…) ou un caractère invisible (sélecteur de variante,
 remplissage hangûl…). Chaque refus est journalisé en `WARNING`, au plus une
 ligne par minute et par nom refusé, avec le pair, le motif, puis le nom
-échappé et son empreinte (un relais qui coupe une ligne trop longue en
-perd d'abord la fin : le compte omis s'il y en a un, puis l'empreinte et
-la fin du nom) :
+échappé et son empreinte :
 
 ```text
 proxy header user name refused from peer 10.0.0.9: character U+FE0F not allowed (invisible): "bob\ufe0f" [<empreinte>]
@@ -351,8 +349,7 @@ vérifiable de la partie coupée) : `<motif>: "bob\u200b" [<empreinte>]`.
 L'empreinte suffit à garder une fenêtre propre à chacun de deux noms coupés
 à l'identique. La ligne écrite à l'arrêt cite cette clé, et dit donc
 pourquoi le nom a été refusé même si la ligne qui l'a d'abord signalé a
-quitté le journal ; le compte y précède la clé, et un relais qui coupe
-une ligne trop longue le garde. L'empreinte change avec
+quitté le journal. L'empreinte change avec
 `PGPP_WEB_SECRET` : après un changement de secret (qui demande un
 redémarrage), un même nom apparaît sous deux empreintes, et les lignes
 d'avant et d'après ne se relient plus par elle. Le pair ne fait pas
@@ -361,7 +358,7 @@ derniers pairs (ou clés) vus sont suivis ; au-delà, le plus anciennement
 vu est oublié et son compte en attente s'ajoute à un compteur global, sans
 plus être attribué à ce pair.
 Toutes clés confondues, chaque avertissement écrit au plus 20 lignes par
-minute (et à l'arrêt, au plus 20 lignes de comptes en attente, pour les
+minute, plus la ligne du compteur global (et à l'arrêt, au plus 20 lignes de comptes en attente, pour les
 clés vues le plus récemment, dans l'ordre de leur dernière occurrence, la
 ligne globale en dernier) : au-delà, les omissions
 s'ajoutent à ce même compteur global, écrit en une ligne (`…: 57 similar
@@ -413,6 +410,11 @@ garder `usedns = no`.
 
 ## Limites connues
 
+- **Lignes longues coupées par un relais** : une ligne de nom refusé peut
+  dépasser un kilo-octet (nom échappé de 128 caractères, empreinte, motif,
+  compte omis). Un relais syslog qui coupe les lignes (1 Ko selon la RFC
+  3164) en perd la fin, quel que soit l'ordre des champs : journaliser dans
+  un fichier ou par un relais qui accepte des lignes d'au moins 2 Ko.
 - **Pas de limitation de débit dans l'application** : les tentatives HTTP
   basic sont freinées par bcrypt seul ; le reverse proxy limite le débit
   (voir ci-dessus). Un verrouillage par compte a été écarté : derrière le

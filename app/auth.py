@@ -293,7 +293,7 @@ class _ThrottledWarning:
 
     The key (the peer address, say) keeps one source from hiding another:
     each key has its own window.  At most `max_lines` lines are logged per
-    interval, all keys together: beyond, the warnings are added to a single
+    interval, all keys together, plus the global count line: beyond, the warnings are added to a single
     global count, logged in one line with the first warning of a later
     interval, or by flush().  At most `max_keys` keys are tracked, the
     least recently seen one is dropped beyond (its pending count goes to
@@ -340,7 +340,8 @@ class _ThrottledWarning:
     def warning(self, message: str, *args: object, key: str = "") -> None:
         """Log `message` at most once per interval for `key` (with the count
         suppressed since), and at most `max_lines` lines per interval for all
-        keys together (beyond, the global count)."""
+        keys together, plus the global count line (beyond, the global
+        count)."""
         now = time.monotonic()
         global_pending: tuple[int, datetime | None] = (0, None)
         with self._lock:
