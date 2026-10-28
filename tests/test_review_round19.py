@@ -6,7 +6,6 @@ already refused by NFKC."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import unicodedata
@@ -189,12 +188,13 @@ def test_a_refused_proxy_name_is_logged_with_its_reason(monkeypatch, caplog):
     assert [r.getMessage() for r in caplog.records] == [
         "proxy header user name refused from peer 127.0.0.1:"
         ' character U+FE0F not allowed (invisible): "bob\\ufe0f"'
+        f" [{auth._name_digest(settings, 'bob' + chr(0xFE0F))}]"
     ]
     caplog.clear()
     warnings.flush()
     assert [r.getMessage() for r in caplog.records] == [
         'proxy header user name refused "bob\\ufe0f"'
-        f" (character U+FE0F not allowed (invisible)) [{BOB_DIGEST}]:"
+        f" [{auth._name_digest(settings, 'bob' + chr(0xFE0F))}]:"
         " 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00"
     ]
     assert warnings.refused_proxy_user in warnings.all()
@@ -257,15 +257,7 @@ def test_the_earliest_since_is_kept():
     assert window.take() == (2, earlier)
 
 
-def _digest(name: str) -> str:
-    return hashlib.sha256(name.encode()).hexdigest()[:12]
-
-
-BOB_DIGEST = _digest("bob\ufe0f")
-EVE_DIGEST = _digest("eve\u200b")
-
-
-def test_refused_proxy_names_are_keyed_by_name(monkeypatch, caplog):
+def test_refused_proxy_names_are_keyed_by_name_and_digest(monkeypatch, caplog):
     caplog.set_level(logging.WARNING)
     _clock(monkeypatch)
     warnings = auth.AuthWarnings()
@@ -276,8 +268,8 @@ def test_refused_proxy_names_are_keyed_by_name(monkeypatch, caplog):
     # one proxy, two names: two lines
     assert len(caplog.records) == 2
     assert list(warnings.refused_proxy_user._windows) == [
-        f'"bob\\ufe0f" (character U+FE0F not allowed (invisible)) [{BOB_DIGEST}]',
-        f'"eve\\u200b" (character U+200B not allowed (category Cf)) [{EVE_DIGEST}]',
+        f'"bob\\ufe0f" [{auth._name_digest(settings, "bob" + chr(0xFE0F))}]',
+        f'"eve\\u200b" [{auth._name_digest(settings, "eve" + chr(0x200B))}]',
     ]
 
 

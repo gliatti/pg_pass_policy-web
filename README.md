@@ -207,7 +207,7 @@ ligne par minute et par nom refusé, avec le pair, le motif puis le nom
 que la fin du nom) :
 
 ```text
-proxy header user name refused from peer 10.0.0.9: character U+FE0F not allowed (invisible): "bob\ufe0f"
+proxy header user name refused from peer 10.0.0.9: character U+FE0F not allowed (invisible): "bob\ufe0f" [<empreinte>]
 ```
 
 Le nom de l'utilisateur web est enregistré dans `pass_policy.audit_log`
@@ -322,13 +322,12 @@ dans l'en-tête du proxy ou dans `PGPP_WEB_BASIC_USERS`), il est coupé et
 `...` est ajouté avant le guillemet fermant (`"aaaa..."`). La ligne d'échec
 HTTP basic finit toujours par `" from <adresse>` ; celle du nom refusé dans
 l'en-tête du proxy porte le nom après le motif (`… from peer <adresse>:
-<motif>: "<nom>"`), suivi, quand des lignes ont été omises avant elle, du
-compte omis (` (3 similar warnings suppressed since …)`) ; la ligne écrite
-à l'arrêt pour ce compte cite la clé puis le compte (`proxy header user
-name refused "<nom>" (<motif>) [<empreinte>]: 3 similar warnings
-suppressed since …`) ;
-l'erreur de démarrage sur `PGPP_WEB_BASIC_USERS` cite
-le nom, puis le motif et la règle (`user name "<nom>" refused: <motif>; a
+<motif>: "<nom>" [<empreinte>]`), suivi, quand des lignes ont été omises
+avant elle, du compte omis (` (3 similar warnings suppressed since …)`) ;
+la ligne écrite à l'arrêt pour ce compte cite la clé puis le compte
+(`proxy header user name refused "<nom>" [<empreinte>]: 3 similar warnings
+suppressed since …`) ; l'erreur de démarrage sur `PGPP_WEB_BASIC_USERS`
+cite le nom, puis le motif et la règle (`user name "<nom>" refused: <motif>; a
 user name must be …`).
 
 Les avertissements répétitifs (en-tête indécodable, en-tête reçu d'un pair
@@ -343,12 +342,14 @@ est pris sous sa forme normalisée, citée après l'adresse quand elle en
 diffère : une adresse IPv4 mappée comme l'adresse IPv4
 (`peer ::ffff:10.0.0.9 (10.0.0.9)`), une adresse IPv6 réduite à son /64
 (`peer 2001:db8::1 (2001:db8::/64)`). Ceux du nom refusé sont limités par
-nom refusé : la clé est le nom échappé et coupé à 128 caractères comme
-dans la ligne, suivi du motif et d'une empreinte SHA-256 abrégée du nom
-complet (`"bob\u200b" (character U+200B not allowed (category Cf))
-[1a2b3c4d5e6f]`), si bien que deux noms distincts n'ont jamais la même
-fenêtre et que la ligne écrite à l'arrêt cite aussi le motif ; le pair
-n'en fait pas partie : c'est presque toujours l'unique mandataire. Les 256
+nom refusé : la clé est le nom échappé et coupé à 128 caractères, suivi
+d'une empreinte du nom complet (HMAC-SHA-256 avec `PGPP_WEB_SECRET`, 128
+bits : le journal ne contient aucun condensé vérifiable de la partie
+coupée), et c'est elle que citent la ligne et la ligne écrite à l'arrêt
+(`"bob\u200b" [<empreinte>]`) : deux noms coupés à l'identique gardent
+chacun leur fenêtre, et l'empreinte relie le compte écrit à l'arrêt à la
+ligne qui donne le motif ; le pair n'en fait pas partie : c'est presque
+toujours l'unique mandataire. Les 256
 derniers pairs (ou clés) vus sont suivis ; au-delà, le plus anciennement vu est oublié et son compte en
 attente s'ajoute à un compteur global, sans plus être attribué à ce pair.
 Toutes clés confondues, chaque avertissement écrit au plus 20 lignes par

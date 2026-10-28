@@ -406,7 +406,8 @@ class AuthWarnings:
         )
         # a proxy header holding a name refused by app.usernames (NFKC,
         # invisible character...): the reason and the escaped name, per
-        # escaped name (the peer is the trusted proxy, nearly always one)
+        # refused name (escaped name + keyed digest of the full name; the
+        # peer is the trusted proxy, nearly always one)
         self.refused_proxy_user = _ThrottledWarning(
             "proxy header user name refused", max_keys=UNTRUSTED_PEERS_TRACKED
         )
@@ -418,6 +419,13 @@ class AuthWarnings:
         """At shutdown: report the warnings suppressed since the last one logged."""
         for throttled in self.all():
             throttled.flush()
+
+
+def _name_digest(settings: Settings, user: str) -> str:
+    """A short keyed digest of a refused user name (128 bits, hex)."""
+    key = settings.secret.get_secret_value().encode()
+    message = b"pgpp-web refused name\x00" + user.encode("utf-8")
+    return hmac.new(key, message, hashlib.sha256).hexdigest()[:32]
 
 
 def user_from_proxy(request: Request, settings: Settings) -> str:
@@ -468,18 +476,19 @@ def user_from_proxy(request: Request, settings: Settings) -> str:
         ) from None
     problem = user_name_problem(user)
     if problem is not None:
-        # keyed by the displayed name, the reason and a digest of the full
-        # name: bounded, and two distinct names never share a window, however
-        # they are cut; the name after the peer and the reason, so that a
-        # relay cutting a long line keeps them
-        name = loggable(user, USER_MAX_LENGTH)
-        digest = hashlib.sha256(user.encode("utf-8", "surrogatepass")).hexdigest()[:12]
+        # keyed by the displayed name and a keyed digest of the full name
+        # (HMAC with PGPP_WEB_SECRET, so that the log holds no checkable
+        # hash of the cut tail): bounded, and two names cut alike keep
+        # their own window; the subject (name and digest) after the peer
+        # and the reason, so that a relay cutting a long line keeps them,
+        # and the same subject in the line written at shutdown
+        subject = f"{loggable(user, USER_MAX_LENGTH)} [{_name_digest(settings, user)}]"
         warnings.refused_proxy_user.warning(
             "proxy header user name refused from peer %s: %s: %s",
             _peer(request),
             problem,
-            name,
-            key=f"{name} ({problem}) [{digest}]",
+            subject,
+            key=subject,
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
