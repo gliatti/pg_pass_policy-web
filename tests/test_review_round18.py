@@ -109,15 +109,16 @@ def test_every_warning_tracks_256_keys(monkeypatch, caplog):
     assert list(warnings.all()) == attributes
     assert len(set(map(id, attributes))) == len(attributes)
     # the labels, which COUNT_LINE puts first (format pinned by
-    # test_count_lines_share_one_prefix): known ones kept, all distinct and
-    # non-empty
-    labels = [t.label for t in warnings.all()]
-    assert len(set(labels)) == len(labels) and all(labels)
-    assert set(labels) >= {
+    # test_count_lines_share_one_prefix); _register refuses bad or duplicate
+    # ones
+    assert {t.label for t in warnings.all()} == {
         "proxy header not decodable",
         "proxy header refused from untrusted peer",
         "proxy header user name refused",
     }
+    for bad in ("", " x", "proxy header not decodable"):
+        with pytest.raises(ValueError):
+            warnings._register(bad)
     for throttled in warnings.all():
         assert throttled.max_keys == auth.TRACKED_KEYS, throttled.label
         for i in range(300):

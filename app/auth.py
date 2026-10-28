@@ -440,6 +440,9 @@ class AuthWarnings:
     def _register(self, label: str) -> _ThrottledWarning:
         """The only way to create a warning here: registered, so that flush()
         (and the tests that reset every warning) cannot miss it."""
+        # the label starts every count line: a usable, distinct prefix
+        if not label or label != label.strip() or label in {t.label for t in self._all}:
+            raise ValueError(f"bad or duplicate warning label {label!r}")
         throttled = _ThrottledWarning(label)
         self._all.append(throttled)
         return throttled
