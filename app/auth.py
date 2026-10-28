@@ -327,10 +327,10 @@ class _ThrottledWarning:
             self._global = _Window()
 
     def _log_pending(self, tail: str, suppressed: int, since: datetime | None) -> None:
-        """One count line: the label, the count, then `tail` (": <key>" or
-        " (all sources)").  The count right after the label gives every count
-        line the same prefix, whatever the key: keep this order, log filters
-        may rely on it."""
+        """One count line: "<label>: <N> similar warnings suppressed since
+        <T>" then `tail` (": <key>", " (all sources)", or nothing for the
+        empty key).  The prefix is the same for every count line (pinned by
+        a test): log filters may rely on it."""
         if suppressed and since is not None:
             log.warning(
                 "%s: %d similar warnings suppressed since %s%s",
@@ -341,11 +341,10 @@ class _ThrottledWarning:
             )
 
     def warning(self, message: str, *args: object, key: str = "") -> None:
-        """Log `message` at most once per interval for `key` (with the count
-        suppressed since), and at most `max_lines` lines per interval for all
-        keys together, plus one global count line: the warnings over that
-        cap and the pending counts of evicted keys go to the global count,
-        logged with the first warning of a later interval or by flush()."""
+        """Log `message` at most once per interval for `key`, with the count
+        suppressed since; beyond `max_lines` lines per interval for all keys
+        together, or when a key is evicted, the counts go to the global
+        count, which a later call or flush() logs (see the class docstring)."""
         now = time.monotonic()
         global_pending: tuple[int, datetime | None] = (0, None)
         with self._lock:
@@ -372,11 +371,13 @@ class _ThrottledWarning:
                 return
             self._global_lines += 1
             suppressed, since = window.take()
-        self._log_pending(" (all sources)", *global_pending)
-        if suppressed and since is not None:
-            message += " (%d similar warnings suppressed since %s)"
-            args = (*args, suppressed, since.isoformat(timespec="seconds"))
-        log.warning(message, *args)
+            # logged under the lock, so that the global line of an interval
+            # always comes before the warnings of the next one
+            self._log_pending(" (all sources)", *global_pending)
+            if suppressed and since is not None:
+                message += " (%d similar warnings suppressed since %s)"
+                args = (*args, suppressed, since.isoformat(timespec="seconds"))
+            log.warning(message, *args)
 
     def flush(self) -> None:
         """Log the counts of warnings suppressed and not reported yet, if any:
@@ -396,6 +397,9 @@ class _ThrottledWarning:
 
 # peers tracked by the untrusted peer warning (least recently seen dropped)
 UNTRUSTED_PEERS_TRACKED = 256
+# refused names tracked by the refused proxy name warning (same bound, own
+# constant)
+REFUSED_NAMES_TRACKED = 256
 
 
 class AuthWarnings:
@@ -420,7 +424,7 @@ class AuthWarnings:
         # described in user_from_proxy() (the peer is the trusted proxy,
         # nearly always one)
         self.refused_proxy_user = _ThrottledWarning(
-            "proxy header user name refused", max_keys=UNTRUSTED_PEERS_TRACKED
+            "proxy header user name refused", max_keys=REFUSED_NAMES_TRACKED
         )
 
     def all(self) -> tuple[_ThrottledWarning, ...]:

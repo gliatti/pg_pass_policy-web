@@ -258,7 +258,7 @@ def test_the_earliest_since_is_kept():
     assert window.take() == (2, earlier)
 
 
-def test_each_refused_proxy_name_has_its_own_window_and_key(monkeypatch, caplog):
+def test_refused_proxy_name_key_layout_and_windows(monkeypatch, caplog):
     caplog.set_level(logging.WARNING)
     _clock(monkeypatch)
     warnings = auth.AuthWarnings()
@@ -300,3 +300,17 @@ def test_long_refused_names_cut_alike_keep_their_own_window(monkeypatch, caplog)
     # same displayed name, same reason: two windows, two lines
     assert len(caplog.records) == 2
     assert len(warnings.refused_proxy_user._windows) == 2
+
+
+def test_count_lines_share_one_prefix(monkeypatch, caplog):
+    caplog.set_level(logging.WARNING)
+    _clock(monkeypatch)
+    _fixed_now(monkeypatch)
+    throttled = auth._ThrottledWarning("label")
+    for key in ("", "k"):
+        throttled.warning("w", key=key)
+        throttled.warning("w", key=key)
+    caplog.clear()
+    throttled.flush()
+    prefix = "label: 1 similar warnings suppressed since 2026-05-06T07:08:09+00:00"
+    assert sorted(r.getMessage() for r in caplog.records) == [prefix, f"{prefix}: k"]
