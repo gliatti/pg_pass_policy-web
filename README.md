@@ -358,12 +358,12 @@ derniers pairs (ou clés) vus sont suivis ; au-delà, le plus anciennement
 vu est oublié et son compte en attente s'ajoute à un compteur global, sans
 plus être attribué à ce pair.
 Toutes clés confondues, chaque avertissement écrit au plus 20 lignes par
-minute, plus la ligne du compteur global (et à l'arrêt, au plus 20 lignes de comptes en attente, pour les
-clés vues le plus récemment, dans l'ordre de leur dernière occurrence, la
-ligne globale en dernier) : au-delà, les omissions
-s'ajoutent à ce même compteur global, écrit en une ligne (`…: 57 similar
-warnings suppressed since … (all sources)`) avec le premier avertissement d'une
-minute suivante ou à l'arrêt de l'application.
+minute, plus la ligne du compteur global (et à l'arrêt, au plus 20 lignes
+de comptes en attente, pour les clés vues le plus récemment, dans l'ordre
+de leur dernière occurrence, la ligne globale en dernier) : au-delà, les
+omissions s'ajoutent à ce même compteur global, écrit en une ligne (`…: 57
+similar warnings suppressed since … (all sources)`) avec le premier
+avertissement d'une minute suivante ou à l'arrêt de l'application.
 
 Derrière HTTPS, `PGPP_WEB_SESSION_HTTPS_ONLY=true` est requis : le cookie de
 session devient `__Host-pgpp_session` (`Secure`, `Path=/`, sans `Domain`),

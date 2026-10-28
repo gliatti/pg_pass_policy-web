@@ -296,10 +296,10 @@ class _ThrottledWarning:
     interval, all keys together, plus the global count line: beyond, the
     warnings are added to a single global count, logged in one line with
     the first warning of a later interval, or by flush().  At most
-    `max_keys` keys are tracked, the
-    least recently seen one is dropped beyond (its pending count goes to
-    the global count, no line of its own), so that a scan from many
-    addresses can neither grow the state nor flood the log."""
+    `max_keys` keys are tracked, the least recently seen one is dropped
+    beyond (its pending count goes to the global count, no line of its
+    own), so that a scan from many addresses can neither grow the state
+    nor flood the log."""
 
     def __init__(
         self,
@@ -328,7 +328,7 @@ class _ThrottledWarning:
 
     def _log_pending(self, tail: str, suppressed: int, since: datetime | None) -> None:
         """One count line: the label, the count, then `tail` (": <key>" or
-        " (all sources)"), so that a relay cutting a long line keeps the count."""
+        " (all sources)")."""
         if suppressed and since is not None:
             log.warning(
                 "%s: %d similar warnings suppressed since %s%s",
@@ -341,8 +341,7 @@ class _ThrottledWarning:
     def warning(self, message: str, *args: object, key: str = "") -> None:
         """Log `message` at most once per interval for `key` (with the count
         suppressed since), and at most `max_lines` lines per interval for all
-        keys together, plus the global count line (beyond, the global
-        count)."""
+        keys together, plus one global count line carrying the overflow."""
         now = time.monotonic()
         global_pending: tuple[int, datetime | None] = (0, None)
         with self._lock:
@@ -490,8 +489,7 @@ def user_from_proxy(request: Request, settings: Settings) -> str:
         # checkable hash of the cut tail): bounded, two names cut alike keep
         # their own window (the digest), and the line written at shutdown,
         # which cites the key, says why the name was refused on its own
-        # (the live line may be rotated out); the reason first, so that a
-        # relay cutting a long line keeps it
+        # (the live line may be rotated out)
         key = f"{problem}: {loggable(user, USER_MAX_LENGTH)} [{_name_digest(settings, user)}]"
         warnings.refused_proxy_user.warning(
             "proxy header user name refused from peer %s: %s", _peer(request), key, key=key
