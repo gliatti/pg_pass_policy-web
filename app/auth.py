@@ -293,8 +293,9 @@ class _ThrottledWarning:
 
     The key (the peer address, say) keeps one source from hiding another:
     each key has its own window.  At most `max_lines` lines are logged per
-    interval, all keys together, plus the global count line: beyond, the warnings are added to a single
-    global count, logged in one line with the first warning of a later
+    interval, all keys together, plus the global count line: beyond, the
+    warnings are added to a single global count, logged in one line with
+    the first warning of a later
     interval, or by flush().  At most `max_keys` keys are tracked, the
     least recently seen one is dropped beyond (its pending count goes to
     the global count, no line of its own), so that a scan from many
