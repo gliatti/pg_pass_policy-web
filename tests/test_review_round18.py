@@ -102,7 +102,8 @@ def test_the_peers_tracked_are_bounded_least_recently_seen_dropped(monkeypatch, 
 def test_the_default_bound_is_256_peers(monkeypatch):
     _clock(monkeypatch)
     warnings = auth.AuthWarnings()
-    assert warnings.untrusted_proxy_peer.max_keys == auth.UNTRUSTED_PEERS_TRACKED == 256
+    assert warnings.untrusted_proxy_peer.max_keys == auth.TRACKED_KEYS == 256
+    assert warnings.refused_proxy_user.max_keys == auth.TRACKED_KEYS
     for i in range(300):
         warnings.untrusted_proxy_peer.warning("w", key=f"10.0.{i // 256}.{i % 256}")
     assert len(warnings.untrusted_proxy_peer._windows) == 256

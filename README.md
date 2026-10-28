@@ -410,6 +410,13 @@ garder `usedns = no`.
 
 ## Limites connues
 
+- **Ordre des lignes limitées entre requêtes simultanées** : les lignes sont
+  écrites hors du verrou de limitation, pour qu'un journal lent ne bloque
+  pas les requêtes limitées. Deux requêtes simultanées peuvent donc écrire
+  leurs lignes dans un ordre différent de celui où elles ont été comptées
+  (une ligne de compte global après un avertissement de la minute
+  suivante, par exemple) : chaque ligne de compte porte la date de la
+  première omission qu'elle résume.
 - **Lignes longues coupées par un relais** : une ligne de nom refusé peut
   dépasser un kilo-octet (nom échappé de 128 caractères, empreinte, motif,
   compte omis). Un relais syslog qui coupe les lignes (1 Ko selon la RFC

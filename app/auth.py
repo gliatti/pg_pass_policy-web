@@ -254,6 +254,17 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+# keys tracked by a _ThrottledWarning (least recently seen dropped beyond)
+TRACKED_KEYS = 256
+# the wording of a suppressed count, shared by the warnings and the count
+# lines (log filters may match it)
+SUPPRESSED = "%d similar warnings suppressed since %s"
+
+
+def _suppressed_args(suppressed: int, since: datetime) -> tuple[int, str]:
+    return suppressed, since.isoformat(timespec="seconds")
+
+
 @dataclass
 class _Window:
     """The throttling state of one key of a _ThrottledWarning."""
@@ -305,7 +316,7 @@ class _ThrottledWarning:
         self,
         label: str,
         interval: float = 60.0,
-        max_keys: int = 256,
+        max_keys: int = TRACKED_KEYS,
         max_lines: int = MAX_LINES_PER_INTERVAL,
     ):
         self.label = label
@@ -333,11 +344,7 @@ class _ThrottledWarning:
         a test): log filters may rely on it."""
         if suppressed and since is not None:
             log.warning(
-                "%s: %d similar warnings suppressed since %s%s",
-                self.label,
-                suppressed,
-                since.isoformat(timespec="seconds"),
-                tail,
+                "%s: " + SUPPRESSED + "%s", self.label, *_suppressed_args(suppressed, since), tail
             )
 
     def warning(self, message: str, *args: object, key: str = "") -> None:
@@ -347,6 +354,7 @@ class _ThrottledWarning:
         count, which a later call or flush() logs (see the class docstring)."""
         now = time.monotonic()
         global_pending: tuple[int, datetime | None] = (0, None)
+        suppressed, since = 0, None
         with self._lock:
             window = self._windows.get(key)
             if window is None:
@@ -378,11 +386,14 @@ class _ThrottledWarning:
         self._log_pending(" (all sources)", *global_pending)
         if over_cap:
             return
-        text = message % args if args else message
         if suppressed and since is not None:
-            stamp = since.isoformat(timespec="seconds")
-            text += f" ({suppressed} similar warnings suppressed since {stamp})"
-        log.warning("%s", text)
+            # a message without args is not %-formatted by logging: escape
+            # its % before adding formatted args
+            if not args:
+                message = message.replace("%", "%%")
+            message += " (" + SUPPRESSED + ")"
+            args = (*args, *_suppressed_args(suppressed, since))
+        log.warning(message, *args)
 
     def flush(self) -> None:
         """Log the counts of warnings suppressed and not reported yet, if any:
@@ -401,7 +412,6 @@ class _ThrottledWarning:
 
 
 # peers tracked by the untrusted peer warning (least recently seen dropped)
-UNTRUSTED_PEERS_TRACKED = 256
 
 
 class AuthWarnings:
@@ -418,9 +428,7 @@ class AuthWarnings:
         # once per minute and per peer at most, a scan or a misrouted client
         # would send one per request; per peer, so that one noisy address
         # does not hide the others
-        self.untrusted_proxy_peer = _ThrottledWarning(
-            "proxy header refused from untrusted peer", max_keys=UNTRUSTED_PEERS_TRACKED
-        )
+        self.untrusted_proxy_peer = _ThrottledWarning("proxy header refused from untrusted peer")
         # a proxy header holding a name refused by app.usernames (NFKC,
         # invisible character...): one window per refused name, keyed as
         # described in user_from_proxy() (the peer is the trusted proxy,
