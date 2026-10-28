@@ -202,11 +202,13 @@ accepté par une version précédente peut désormais recevoir un 401, en
 particulier une forme de compatibilité (refusée par NFKC : pleine chasse,
 ligature, exposant…) ou un caractère invisible (sélecteur de variante,
 remplissage hangûl…). Chaque refus est journalisé en `WARNING`, au plus une
-ligne par minute et par nom refusé, avec le pair, le nom échappé, son
-empreinte puis le motif :
+ligne par minute et par nom refusé, avec le pair, le motif, puis le nom
+échappé et son empreinte (un relais qui coupe une ligne trop longue en
+perd d'abord la fin : le compte omis s'il y en a un, puis l'empreinte et
+la fin du nom) :
 
 ```text
-proxy header user name refused from peer 10.0.0.9: "bob\ufe0f" [<empreinte>] (character U+FE0F not allowed (invisible))
+proxy header user name refused from peer 10.0.0.9: character U+FE0F not allowed (invisible): "bob\ufe0f" [<empreinte>]
 ```
 
 Le nom de l'utilisateur web est enregistré dans `pass_policy.audit_log`
@@ -320,11 +322,11 @@ non, jamais tel quel ; au-delà de 64 caractères (128 pour un nom refusé
 dans l'en-tête du proxy ou dans `PGPP_WEB_BASIC_USERS`), il est coupé et
 `...` est ajouté avant le guillemet fermant (`"aaaa..."`). La ligne d'échec
 HTTP basic finit toujours par `" from <adresse>` ; celle du nom refusé dans
-l'en-tête du proxy cite le pair puis la clé (`… from peer <adresse>:
-"<nom>" [<empreinte>] (<motif>)`), suivie, quand des lignes ont été omises
+l'en-tête du proxy cite le pair, le motif puis la clé (`… from peer
+<adresse>: <motif>: "<nom>" [<empreinte>]`), suivie, quand des lignes ont été omises
 avant elle, du compte omis (` (3 similar warnings suppressed since …)`) ;
 la ligne écrite à l'arrêt pour ce compte cite la clé puis le compte
-(`proxy header user name refused "<nom>" [<empreinte>] (<motif>): 3
+(`proxy header user name refused <motif>: "<nom>" [<empreinte>]: 3
 similar warnings suppressed since …`) ; l'erreur de démarrage sur
 `PGPP_WEB_BASIC_USERS` cite le nom, puis le motif et la règle (`user name
 "<nom>" refused: <motif>; a user name must be …`).
@@ -344,12 +346,13 @@ diffère : une adresse IPv4 mappée comme l'adresse IPv4
 nom refusé : la clé est le nom échappé et coupé à 128 caractères, suivi
 d'une empreinte du nom complet (HMAC-SHA-256 avec `PGPP_WEB_SECRET`, 128
 bits : le journal ne contient aucun condensé vérifiable de la partie
-coupée) et du motif (`"bob\u200b" [<empreinte>] (<motif>)`). Deux noms
-coupés à l'identique gardent ainsi chacun leur fenêtre, et la ligne écrite
-à l'arrêt, qui cite la clé, dit pourquoi le nom a été refusé même quand
-aucune ligne n'a été écrite pour lui (plafond global). L'empreinte change
-avec `PGPP_WEB_SECRET` : après un changement de secret (qui demande un
-redémarrage), un même nom apparaît sous deux empreintes. Le pair ne fait
+coupée) : `"bob\u200b" [<empreinte>]`. L'empreinte suffit à garder une
+fenêtre propre à chacun de deux noms coupés à l'identique. La ligne écrite
+à l'arrêt cite le motif avant la clé, et dit donc pourquoi le nom a été
+refusé même quand aucune ligne n'a été écrite pour lui (plafond global).
+L'empreinte change avec `PGPP_WEB_SECRET` : après un changement de secret
+(qui demande un redémarrage), un même nom apparaît sous deux empreintes,
+et les lignes d'avant et d'après ne se relient plus par elle. Le pair ne fait
 pas partie de la clé : c'est presque toujours l'unique mandataire. Les 256
 derniers pairs (ou clés) vus sont suivis ; au-delà, le plus anciennement
 vu est oublié et son compte en attente s'ajoute à un compteur global, sans

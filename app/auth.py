@@ -258,6 +258,8 @@ def _utcnow() -> datetime:
 class _Window:
     """The throttling state of one key of a _ThrottledWarning."""
 
+    # what the line written at shutdown cites for this key (the key if empty)
+    shown: str = ""
     last: float | None = None
     suppressed: int = 0
     since: datetime | None = None
@@ -340,7 +342,9 @@ class _ThrottledWarning:
     def _global_subject(self) -> str:
         return f"{self.label} (all sources)"
 
-    def warning(self, message: str, *args: object, key: str = "") -> None:
+    def warning(self, message: str, *args: object, key: str = "", shown: str = "") -> None:
+        """Log `message` unless throttled for `key`; `shown` is what the line
+        written at shutdown cites for the key (the key itself by default)."""
         now = time.monotonic()
         global_pending: tuple[int, datetime | None] = (0, None)
         with self._lock:
@@ -352,6 +356,7 @@ class _ThrottledWarning:
                     self._global.add(*old.take())
             else:
                 self._windows.move_to_end(key)
+            window.shown = shown
             if window.last is not None and now - window.last < self.interval:
                 window.add(1, None)
                 return
@@ -379,7 +384,10 @@ class _ThrottledWarning:
         order of their last occurrence, the global line last (the others are
         added to it)."""
         with self._lock:
-            pending = [(key, *window.take()) for key, window in reversed(self._windows.items())]
+            pending = [
+                (window.shown or key, *window.take())
+                for key, window in reversed(self._windows.items())
+            ]
             pending = [entry for entry in pending if entry[1]]
             for _, suppressed, since in pending[self.max_lines :]:
                 self._global.add(suppressed, since)
@@ -483,18 +491,20 @@ def user_from_proxy(request: Request, settings: Settings) -> str:
         ) from None
     problem = user_name_problem(user)
     if problem is not None:
-        # keyed by the displayed name, a keyed digest of the full name (HMAC
-        # with PGPP_WEB_SECRET, so that the log holds no checkable hash of
-        # the cut tail) and the reason: bounded, two names cut alike keep
-        # their own window, and the line written at shutdown, which cites
-        # the key, says why the name was refused even when no live line
-        # was written (global cap)
-        subject = f"{loggable(user, USER_MAX_LENGTH)} [{_name_digest(settings, user)}] ({problem})"
+        # keyed by the displayed name and a keyed digest of the full name
+        # (HMAC with PGPP_WEB_SECRET, so that the log holds no checkable
+        # hash of the cut tail): bounded, and two names cut alike keep their
+        # own window; the reason before the name, so that a relay cutting a
+        # long line keeps it, and cited by the line written at shutdown too
+        # (shown), even when no live line was written (global cap)
+        key = f"{loggable(user, USER_MAX_LENGTH)} [{_name_digest(settings, user)}]"
         warnings.refused_proxy_user.warning(
-            "proxy header user name refused from peer %s: %s",
+            "proxy header user name refused from peer %s: %s: %s",
             _peer(request),
-            subject,
-            key=subject,
+            problem,
+            key,
+            key=key,
+            shown=f"{problem}: {key}",
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
