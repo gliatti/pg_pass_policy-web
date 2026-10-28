@@ -259,6 +259,9 @@ TRACKED_KEYS = 256
 # the wording of a suppressed count, shared by the warnings and the count
 # lines (log filters may match it)
 SUPPRESSED = "%d similar warnings suppressed since %s"
+# a count line: the label, the count, then ": <key>", " (all sources)" or
+# nothing
+COUNT_LINE = "%s: " + SUPPRESSED + "%s"
 
 
 def _suppressed_args(suppressed: int, since: datetime) -> tuple[int, str]:
@@ -343,12 +346,12 @@ class _ThrottledWarning:
         empty key).  The prefix is the same for every count line (pinned by
         a test): log filters may rely on it."""
         if suppressed and since is not None:
-            log.warning(
-                "%s: " + SUPPRESSED + "%s", self.label, *_suppressed_args(suppressed, since), tail
-            )
+            log.warning(COUNT_LINE, self.label, *_suppressed_args(suppressed, since), tail)
 
     def warning(self, message: str, *args: object, key: str = "") -> None:
-        """Log `message` at most once per interval for `key`, with the count
+        """`message` is a %-template with positional `args` only (no mapping).
+
+        Log `message` at most once per interval for `key`, with the count
         suppressed since; beyond `max_lines` lines per interval for all keys
         together, or when a key is evicted, the counts go to the global
         count, which a later call or flush() logs (see the class docstring)."""
@@ -386,11 +389,11 @@ class _ThrottledWarning:
         self._log_pending(" (all sources)", *global_pending)
         if over_cap:
             return
+        # a message without args is escaped on every line, so that one
+        # warning keeps one template whether a count is added or not
+        if not args:
+            message = message.replace("%", "%%")
         if suppressed and since is not None:
-            # a message without args is not %-formatted by logging: escape
-            # its % before adding formatted args
-            if not args:
-                message = message.replace("%", "%%")
             message += " (" + SUPPRESSED + ")"
             args = (*args, *_suppressed_args(suppressed, since))
         log.warning(message, *args)
@@ -409,9 +412,6 @@ class _ThrottledWarning:
         for key, suppressed, since in reversed(pending[: self.max_lines]):
             self._log_pending(f": {key}" if key else "", suppressed, since)
         self._log_pending(" (all sources)", *global_pending)
-
-
-# peers tracked by the untrusted peer warning (least recently seen dropped)
 
 
 class AuthWarnings:

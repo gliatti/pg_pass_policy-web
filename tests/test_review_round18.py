@@ -104,6 +104,7 @@ def test_the_default_bound_is_256_peers(monkeypatch):
     warnings = auth.AuthWarnings()
     assert warnings.untrusted_proxy_peer.max_keys == auth.TRACKED_KEYS == 256
     assert warnings.refused_proxy_user.max_keys == auth.TRACKED_KEYS
+    assert warnings.undecodable_proxy_header.max_keys == auth.TRACKED_KEYS
     for i in range(300):
         warnings.untrusted_proxy_peer.warning("w", key=f"10.0.{i // 256}.{i % 256}")
     assert len(warnings.untrusted_proxy_peer._windows) == 256
