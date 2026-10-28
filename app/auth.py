@@ -263,8 +263,8 @@ class _Window:
             return
         if not self.suppressed:
             self.since = since or _utcnow()
-        elif since is not None:
-            self.since = min(self.since, since)
+        elif since is not None and (self.since is None or since < self.since):
+            self.since = since
         self.suppressed += count
 
     def take(self) -> tuple[int, datetime | None]:
@@ -367,15 +367,15 @@ class _ThrottledWarning:
 
     def flush(self) -> None:
         """Log the counts of warnings suppressed and not reported yet, if any:
-        one line for each of the `max_lines` most recently seen keys, the
-        others added to the global count."""
+        one line for each of the `max_lines` most recently seen keys, oldest
+        first, the others added to the global count."""
         with self._lock:
             pending = [(key, *window.take()) for key, window in reversed(self._windows.items())]
             pending = [entry for entry in pending if entry[1]]
             for _, suppressed, since in pending[self.max_lines :]:
                 self._global.add(suppressed, since)
             global_pending = self._global.take()
-        for key, suppressed, since in pending[: self.max_lines]:
+        for key, suppressed, since in reversed(pending[: self.max_lines]):
             self._log_pending(self._subject(key), suppressed, since)
         self._log_pending(self._global_subject(), *global_pending)
 
@@ -465,13 +465,15 @@ def user_from_proxy(request: Request, settings: Settings) -> str:
         ) from None
     problem = user_name_problem(user)
     if problem is not None:
-        # keyed by the name, cut longer than in the line, and the reason
+        # keyed by the name and the reason; the name cut at USER_MAX_LENGTH,
+        # in the line as in the key: what tells two keys apart is in the line
+        name = loggable(user, USER_MAX_LENGTH)
         warnings.refused_proxy_user.warning(
             "proxy header user name %s refused from peer %s: %s",
-            loggable(user),
+            name,
             _peer(request),
             problem,
-            key=f"{loggable(user, USER_MAX_LENGTH)} ({problem})",
+            key=f"{name} ({problem})",
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

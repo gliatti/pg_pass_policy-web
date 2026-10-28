@@ -239,8 +239,8 @@ def test_flush_writes_at_most_the_cap_per_key(monkeypatch, caplog):
     assert [r.getMessage() for r in caplog.records] == [
         *(
             f"probe {k}: 1 similar warnings suppressed since 2026-05-06T07:08:09+00:00"
-            # the most recently seen keys
-            for k in "edc"
+            # the most recently seen keys, oldest first
+            for k in "cde"
         ),
         "probe (all sources): 2 similar warnings suppressed since 2026-05-06T07:08:09+00:00",
     ]

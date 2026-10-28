@@ -82,13 +82,16 @@ _HASH = bcrypt.hashpw(b"pw", bcrypt.gensalt(rounds=4)).decode()
         ("a​b", "U+200B not allowed (category Cf)"),
         ("ab", "U+E000 not allowed (category Co)"),
         ("x" * 129, "longer than 128 characters"),
+        # beyond the 64 characters of a log line: still in the message
+        ("x" * 100 + "\u200b", "U+200B not allowed (category Cf)"),
     ],
 )
 def test_invalid_basic_user_names_are_refused_at_startup(user, reason):
     with pytest.raises(ValueError) as refused:
         make_settings(basic_users=f"{user}:{_HASH}")
     message = str(refused.value)
-    assert f"PGPP_WEB_BASIC_USERS: user name {usernames.loggable(user)} refused" in message
+    name = usernames.loggable(user, usernames.USER_MAX_LENGTH)
+    assert f"PGPP_WEB_BASIC_USERS: user name {name} refused" in message
     assert reason in message
 
 

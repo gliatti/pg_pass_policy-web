@@ -35,9 +35,13 @@ def test_the_documented_failregex_captures_the_real_peer(unit_app, caplog, name)
 def test_refused_proxy_names_cut_alike_keep_their_own_key(monkeypatch, caplog):
     caplog.set_level(logging.WARNING)
     monkeypatch.setattr(auth.time, "monotonic", lambda: 1000.0)
+    # two refused names alike on their first USER_MAX_LENGTH characters
+    # differ by their length, hence by the "..." of the cut, or share their
+    # reason (too long): a shorter cut makes the reason the only difference
+    monkeypatch.setattr(auth, "USER_MAX_LENGTH", 70)
     warnings = auth.AuthWarnings()
     settings = make_settings(auth="proxy", basic_users="", proxy_header="X-Remote-User")
-    # the same first LOGGED_NAME_MAX characters, a different reason
+    # the same first 70 characters, a different reason (category Cf, invisible)
     for name in ("a" * 70 + "​", "a" * 70 + "️"):
         with pytest.raises(HTTPException):
             auth.user_from_proxy(_proxy_request(name.encode(), warnings), settings)
